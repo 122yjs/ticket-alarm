@@ -18,27 +18,35 @@ pip install playwright requests beautifulsoup4
 playwright install chromium
 ```
 
-### 설정
+### 설정 (Configuration)
 
-1. `config.json.example` 파일을 `config.json`으로 복사하고 디스코드 웹훅 URL을 입력합니다.
+**중요:** 프로그램을 실행하기 전에 반드시 설정을 완료해야 합니다.
 
-```json
-{
-  "webhook_url": "여기에_디스코드_웹훅_URL을_입력하세요",
-  "interval": 3600,
-  "sources": ["interpark", "yes24", "melon", "ticketlink"]
-}
-```
+1.  프로젝트 루트에 있는 `config.json.example` 파일을 **`data` 디렉토리 안으로 복사**한 후, 파일 이름을 **`config.json`**으로 변경하세요.
+
+    *   **복사 전:** `config.json.example`
+    *   **복사 후:** `data/config.json`
+
+2.  `data/config.json` 파일을 열고, 최소한 `DISCORD_WEBHOOK_URL` 값을 자신의 디스코드 웹훅 URL으로 변경해야 합니다. `KEYWORDS` 배열에는 알림을 받고 싶은 키워드를 추가할 수 있습니다.
+
+    ```json
+    {
+      "DISCORD_WEBHOOK_URL": "여기에_자신의_디스코드_웹훅_URL을_붙여넣으세요",
+      "KEYWORDS": ["뮤지컬", "콘서트", "임영웅", "아이유"],
+      "interval": 3600,
+      "sources": ["interpark", "yes24", "melon", "ticketlink"]
+    }
+    ```
 
 ### 실행
 
-```bash
-# 설정 파일을 사용하여 실행
-python monitor.py --config config.json
+모든 설정이 완료되었다면, 다음 명령어로 모니터링을 시작할 수 있습니다.
 
-# 또는 명령줄 인수로 실행
-python monitor.py --webhook 웹훅URL --interval 3600 --sources interpark yes24 melon ticketlink
+```bash
+python monitor.py
 ```
+
+이제 프로그램은 `data/config.json` 파일에서 직접 설정을 읽어오므로, 별도의 명령줄 인수가 필요 없습니다.
 
 ## 크롤러 테스트
 

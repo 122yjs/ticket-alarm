@@ -1,5 +1,6 @@
 {
-  "webhook_url": "여기에_디스코드_웹훅_URL을_입력하세요",
+  "DISCORD_WEBHOOK_URL": "여기에_디스코드_웹훅_URL을_입력하세요",
+  "KEYWORDS": ["뮤지컬", "콘서트", "임영웅", "아이유"],
   "interval": 3600,
   "sources": ["interpark", "yes24", "melon", "ticketlink"]
 }
