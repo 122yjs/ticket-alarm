@@ -167,3 +167,9 @@ cython_debug/
 
 .DS_Store
 # End of https://www.toptal.com/developers/gitignore/api/python
+
+# 프로젝트 특정 파일
+config.json
+sent_notifications.json
+all_tickets.json
+*.png

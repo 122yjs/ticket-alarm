@@ -1,0 +1,5 @@
+{
+  "webhook_url": "여기에_디스코드_웹훅_URL을_입력하세요",
+  "interval": 3600,
+  "sources": ["interpark", "yes24", "melon", "ticketlink"]
+}
