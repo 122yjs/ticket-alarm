@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 def get_melon_notices():
     print("멜론티켓 크롤링 시작...")
     ticket_list = []
+    seen_links = set()  # 중복 티켓을 제거하기 위한 set
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
@@ -18,10 +19,6 @@ def get_melon_notices():
             url = "https://ticket.melon.com/csoon/index.htm#orderType=0&pageIndex=1&schGcode=GENRE_ALL&schText=&schDt="
             page.goto(url, timeout=60000)
             
-            # 페이지 로딩 대기
-            page.wait_for_selector(".wrap_soon", timeout=10000)
-            
-            # 더 많은 데이터를 로드하기 위해 페이지 스크롤
             scroll_count = 3
             print(f"데이터를 더 불러오기 위해 페이지를 {scroll_count}번 스크롤합니다.")
             for i in range(scroll_count):
@@ -29,57 +26,97 @@ def get_melon_notices():
                 print(f"스크롤 {i+1}/{scroll_count} 완료...")
                 page.wait_for_timeout(1500)
             
-            # 페이지 내용 가져오기
             html = page.content()
             soup = BeautifulSoup(html, "html.parser")
+
+            # 1. "HOT 공연 오픈 소식" 크롤링
+            hot_items = soup.select("ul.list_hot_issue div.cont")
+            print(f"HOT 공연 섹션에서 {len(hot_items)}개 아이템을 파싱합니다.")
+            for item in hot_items:
+                try:
+                    link_element = item.select_one("a")
+                    if not link_element or not link_element.has_attr('href'):
+                        continue
+                    
+                    relative_link = link_element['href']
+                    # 링크를 고유 ID로 사용 (상대 경로를 절대 경로로 변환)
+                    link = "https://ticket.melon.com/csoon/" + relative_link.lstrip('./')
+
+                    if link in seen_links:
+                        continue  # 이미 추가된 티켓이면 건너뛰기
+                    
+                    title_element = item.select_one("a strong.tit_consert")
+                    date_element = item.select_one("a span.date")
+
+                    if not all([title_element, date_element]):
+                        continue
+
+                    title = title_element.get_text(strip=True)
+                    open_date = date_element.get_text(strip=True)
+                    
+                    ticket_info = {
+                        "open_date": open_date,
+                        "title": title,
+                        "link": link,
+                        "source": "멜론티켓"
+                    }
+                    ticket_list.append(ticket_info)
+                    seen_links.add(link)  # 처리된 링크로 기록
+                except Exception as e:
+                    print(f"HOT 공연 아이템 파싱 중 오류 발생: {e}")
+                    continue
+
+            # 2. 메인 "티켓오픈" 목록 크롤링
+            main_items = soup.select("ul.list_ticket_cont > li")
+            print(f"메인 목록 섹션에서 {len(main_items)}개 아이템을 파싱합니다.")
+            for item in main_items:
+                try:
+                    link_element = item.select_one("a.tit")
+                    if not link_element or not link_element.has_attr('href'):
+                        continue
+                    
+                    relative_link = link_element['href']
+                    link = "https://ticket.melon.com/csoon/" + relative_link.lstrip('./')
+
+                    if link in seen_links:
+                        continue
+
+                    title_element = item.select_one("a.tit")
+                    date_element = item.select_one("div.ticket_data span.date")
+
+                    if not all([title_element, date_element]):
+                        continue
+                        
+                    title = title_element.get_text(strip=True)
+                    open_date = date_element.get_text(strip=True)
+
+                    ticket_info = {
+                        "open_date": open_date,
+                        "title": title,
+                        "link": link,
+                        "source": "멜론티켓"
+                    }
+                    ticket_list.append(ticket_info)
+                    seen_links.add(link)
+                except Exception as e:
+                    print(f"메인 목록 아이템 파싱 중 오류 발생: {e}")
+                    continue
             
-            # 공지사항 아이템 선택
-            items = soup.select(".wrap_soon .lst_soon > li")
-            
-            if not items:
+            if not ticket_list:
                 print("[오류] 공지사항 아이템을 찾을 수 없습니다. 웹사이트 구조가 변경되었을 수 있습니다.")
                 page.screenshot(path="melon_error.png")
                 print("[알림] 'melon_error.png' 파일로 현재 페이지를 저장했습니다.")
                 browser.close()
                 return []
             
-            print(f"파싱할 후보 {len(items)}건 발견. 유효한 데이터만 추출합니다.")
-            for item in items:
-                try:
-                    # 제목 추출
-                    title_element = item.select_one(".tit_soon")
-                    title = title_element.get_text(strip=True) if title_element else "제목 정보 없음"
-                    
-                    # 오픈 날짜 추출
-                    date_element = item.select_one(".date_open")
-                    open_date = date_element.get_text(strip=True) if date_element else "시간 정보 없음"
-                    
-                    # 장소 추출
-                    place_element = item.select_one(".txt_place")
-                    place = place_element.get_text(strip=True) if place_element else ""
-                    
-                    # 링크 추출
-                    link_element = item.select_one("a")
-                    link = "https://ticket.melon.com" + link_element['href'] if link_element and link_element.has_attr('href') else "링크 없음"
-                    
-                    ticket_info = {
-                        "open_date": open_date,
-                        "title": f"{title} - {place}" if place else title,
-                        "link": link,
-                        "source": "멜론티켓"
-                    }
-                    ticket_list.append(ticket_info)
-                except Exception as e:
-                    print(f"아이템 파싱 중 오류 발생: {e}")
-                    continue
-            
-            print(f"멜론티켓 크롤링 완료. 총 {len(ticket_list)}건 발견.")
+            print(f"멜론티켓 크롤링 완료. 중복 제거 후 총 {len(ticket_list)}건 발견.")
             browser.close()
             return ticket_list
             
         except Exception as e:
             print(f"\n[오류] 예상치 못한 오류: {e}")
-            if not browser.is_closed():
+            # browser 객체의 연결 상태를 확인하는 올바른 메서드는 is_connected() 입니다.
+            if browser.is_connected():
                 page.screenshot(path="melon_error.png")
                 browser.close()
             return []
