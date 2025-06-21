@@ -7,6 +7,7 @@ import requests
 from datetime import datetime
 import time
 import os
+import logging
 from typing import List, Dict, Any, Optional
 
 class DiscordNotifier:
@@ -27,7 +28,7 @@ class DiscordNotifier:
                 with open('sent_notifications.json', 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception as e:
-                print(f"알림 기록 로드 중 오류 발생: {e}")
+                logging.error(f"알림 기록 로드 중 오류 발생: {e}")
                 return {}
         return {}
     
@@ -37,7 +38,7 @@ class DiscordNotifier:
             with open('sent_notifications.json', 'w', encoding='utf-8') as f:
                 json.dump(self.sent_notifications, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"알림 기록 저장 중 오류 발생: {e}")
+            logging.error(f"알림 기록 저장 중 오류 발생: {e}")
     
     def is_new_ticket(self, ticket: Dict[str, Any]) -> bool:
         """
@@ -107,7 +108,7 @@ class DiscordNotifier:
             전송 성공 여부
         """
         if not self.is_new_ticket(ticket):
-            print(f"이미 전송된 티켓입니다: {ticket['title']}")
+            logging.info(f"이미 전송된 티켓입니다: {ticket['title']}")
             return False
         
         embed = self.create_embed(ticket)
@@ -126,11 +127,11 @@ class DiscordNotifier:
             
             # 전송 성공 시 기록
             self.mark_as_sent(ticket)
-            print(f"알림 전송 성공: {ticket['title']}")
+            logging.info(f"알림 전송 성공: {ticket['title']}")
             return True
             
         except Exception as e:
-            print(f"알림 전송 중 오류 발생: {e}")
+            logging.error(f"알림 전송 중 오류 발생: {e}")
             return False
     
     def send_batch_notifications(self, tickets: List[Dict[str, Any]], delay: float = 1.0) -> int:
@@ -171,32 +172,34 @@ def main():
     # 모든 크롤러에서 데이터 수집
     all_tickets = []
     
-    print("인터파크 크롤링 시작...")
+    logging.info("인터파크 크롤링 시작...")
     interpark_tickets = get_interpark_notices()
     all_tickets.extend(interpark_tickets)
     
-    print("YES24 크롤링 시작...")
+    logging.info("YES24 크롤링 시작...")
     yes24_tickets = get_yes24_notices()
     all_tickets.extend(yes24_tickets)
     
-    print("멜론티켓 크롤링 시작...")
+    logging.info("멜론티켓 크롤링 시작...")
     melon_tickets = get_melon_notices()
     all_tickets.extend(melon_tickets)
     
-    print("티켓링크 크롤링 시작...")
+    logging.info("티켓링크 크롤링 시작...")
     ticketlink_tickets = get_ticketlink_notices()
     all_tickets.extend(ticketlink_tickets)
     
     # 수집된 티켓 정보 출력
-    print(f"\n총 {len(all_tickets)}개의 티켓 정보를 수집했습니다.")
+    logging.info(f"총 {len(all_tickets)}개의 티켓 정보를 수집했습니다.")
     
     # 알림 전송
     if all_tickets:
         sent_count = notifier.send_batch_notifications(all_tickets)
-        print(f"\n{sent_count}개의 새로운 티켓 정보를 디스코드로 전송했습니다.")
+        logging.info(f"{sent_count}개의 새로운 티켓 정보를 디스코드로 전송했습니다.")
     else:
-        print("\n전송할 티켓 정보가 없습니다.")
+        logging.info("전송할 티켓 정보가 없습니다.")
 
 
 if __name__ == "__main__":
+    # 로깅 설정 (테스트용)
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s]: %(message)s')
     main()

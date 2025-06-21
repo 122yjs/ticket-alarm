@@ -1,8 +1,9 @@
+import logging
 from playwright.sync_api import sync_playwright, TimeoutError
 from bs4 import BeautifulSoup
 
 def get_melon_notices():
-    print("멜론티켓 크롤링 시작...")
+    logging.info("멜론티켓 크롤링 시작...")
     ticket_list = []
     seen_links = set()  # 중복 티켓을 제거하기 위한 set
 
@@ -20,10 +21,10 @@ def get_melon_notices():
             page.goto(url, timeout=60000)
             
             scroll_count = 3
-            print(f"데이터를 더 불러오기 위해 페이지를 {scroll_count}번 스크롤합니다.")
+            logging.info(f"데이터를 더 불러오기 위해 페이지를 {scroll_count}번 스크롤합니다.")
             for i in range(scroll_count):
                 page.keyboard.press("End")
-                print(f"스크롤 {i+1}/{scroll_count} 완료...")
+                logging.info(f"스크롤 {i+1}/{scroll_count} 완료...")
                 page.wait_for_timeout(1500)
             
             html = page.content()
@@ -31,7 +32,7 @@ def get_melon_notices():
 
             # 1. "HOT 공연 오픈 소식" 크롤링
             hot_items = soup.select("ul.list_hot_issue div.cont")
-            print(f"HOT 공연 섹션에서 {len(hot_items)}개 아이템을 파싱합니다.")
+            logging.info(f"HOT 공연 섹션에서 {len(hot_items)}개 아이템을 파싱합니다.")
             for item in hot_items:
                 try:
                     link_element = item.select_one("a")
@@ -63,12 +64,12 @@ def get_melon_notices():
                     ticket_list.append(ticket_info)
                     seen_links.add(link)  # 처리된 링크로 기록
                 except Exception as e:
-                    print(f"HOT 공연 아이템 파싱 중 오류 발생: {e}")
+                    logging.warning(f"HOT 공연 아이템 파싱 중 오류 발생: {e}")
                     continue
 
             # 2. 메인 "티켓오픈" 목록 크롤링
             main_items = soup.select("ul.list_ticket_cont > li")
-            print(f"메인 목록 섹션에서 {len(main_items)}개 아이템을 파싱합니다.")
+            logging.info(f"메인 목록 섹션에서 {len(main_items)}개 아이템을 파싱합니다.")
             for item in main_items:
                 try:
                     link_element = item.select_one("a.tit")
@@ -99,22 +100,22 @@ def get_melon_notices():
                     ticket_list.append(ticket_info)
                     seen_links.add(link)
                 except Exception as e:
-                    print(f"메인 목록 아이템 파싱 중 오류 발생: {e}")
+                    logging.warning(f"메인 목록 아이템 파싱 중 오류 발생: {e}")
                     continue
             
             if not ticket_list:
-                print("[오류] 공지사항 아이템을 찾을 수 없습니다. 웹사이트 구조가 변경되었을 수 있습니다.")
+                logging.warning("공지사항 아이템을 찾을 수 없습니다. 웹사이트 구조가 변경되었을 수 있습니다.")
                 page.screenshot(path="melon_error.png")
-                print("[알림] 'melon_error.png' 파일로 현재 페이지를 저장했습니다.")
+                logging.info("'melon_error.png' 파일로 현재 페이지를 저장했습니다.")
                 browser.close()
                 return []
             
-            print(f"멜론티켓 크롤링 완료. 중복 제거 후 총 {len(ticket_list)}건 발견.")
+            logging.info(f"멜론티켓 크롤링 완료. 중복 제거 후 총 {len(ticket_list)}건 발견.")
             browser.close()
             return ticket_list
             
         except Exception as e:
-            print(f"\n[오류] 예상치 못한 오류: {e}")
+            logging.error(f"멜론티켓 크롤링 중 예상치 못한 오류 발생: {e}", exc_info=True)
             # browser 객체의 연결 상태를 확인하는 올바른 메서드는 is_connected() 입니다.
             if browser.is_connected():
                 page.screenshot(path="melon_error.png")
@@ -122,8 +123,9 @@ def get_melon_notices():
             return []
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s]: %(message)s')
     tickets = get_melon_notices()
     if tickets:
-        print(f"\n--- 최종 결과 ({len(tickets)}건) ---")
+        logging.info(f"--- 최종 결과 ({len(tickets)}건) ---")
         for ticket in tickets:
-            print(f"[{ticket['source']}] {ticket['open_date']} - {ticket['title']}")
+            logging.info(f"[{ticket['source']}] {ticket['open_date']} - {ticket['title']}")

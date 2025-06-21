@@ -1,3 +1,4 @@
+import logging
 from playwright.sync_api import sync_playwright, TimeoutError
 from bs4 import BeautifulSoup
 import random
@@ -7,7 +8,7 @@ import traceback
 
 def get_ticketlink_notices():
     """티켓링크 모바일 웹사이트에서 티켓 오픈 공지사항을 크롤링하는 함수"""
-    print("티켓링크 모바일 크롤링 시작...")
+    logging.info("티켓링크 모바일 크롤링 시작...")
     ticket_list = []
     
     with sync_playwright() as p:
@@ -22,18 +23,24 @@ def get_ticketlink_notices():
                 '--disable-gpu',
                 '--disable-web-security',
                 '--disable-features=IsolateOrigins,site-per-process',
-                '--window-size=430,932'  # iPhone 14 Pro Max 크기
+                # '--window-size=430,932'  # iPhone 14 Pro Max 크기 -> viewport로 대체
             ]
         )
         
         try:
-            # 모바일 디바이스 설정 (iPhone)
-            iphone_13 = p.devices['iPhone 13']
+            # 모바일 디바이스 설정 (iPhone 15 Pro)
+            # User-Agent를 최신 모바일 기기로 위장
+            user_agent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+            
             context = browser.new_context(
-                **iphone_13,
+                user_agent=user_agent,
+                # 실제 모바일 기기의 화면 해상도로 viewport 설정
+                viewport={'width': 393, 'height': 852},
                 locale='ko-KR',
                 timezone_id='Asia/Seoul',
                 ignore_https_errors=True,
+                # geolocation={'longitude': 127.0276, 'latitude': 37.4979}, # 필요시 위치정보 추가
+                # permissions=['geolocation']
             )
             
             page = context.new_page()
@@ -65,34 +72,33 @@ def get_ticketlink_notices():
             """)
             
             # 1. 모바일 공지사항 페이지로 직접 이동
-            print("\n1. 티켓링크 모바일 공지사항 페이지 접속 중...")
+            logging.info("1. 티켓링크 모바일 공지사항 페이지 접속 중...")
             try:
                 # wait_until을 'domcontentloaded'로 변경하여 더 빠르게 로드
-                page.goto("https://m.ticketlink.co.kr/help/notice", 
-                         wait_until="domcontentloaded", 
+                page.goto("https://m.ticketlink.co.kr/help/notice",
+                         wait_until="domcontentloaded",
                          timeout=30000)
-                print("   페이지 접속 성공")
+                logging.info("   페이지 접속 성공")
                 
-                # 페이지 로드 대기
-                page.wait_for_timeout(3000)
+                # 인간적인 행동 모방: 페이지 로드 후 불규칙한 대기
+                time.sleep(random.uniform(1.5, 3.5))
                 
                 # 스크린샷 저장
                 page.screenshot(path="ticketlink_mobile_notice.png", full_page=True)
-                print("   스크린샷 저장: ticketlink_mobile_notice.png")
+                logging.info("   스크린샷 저장: ticketlink_mobile_notice.png")
                 
             except TimeoutError:
-                print("   타임아웃 발생, 페이지 상태 확인 중...")
+                logging.warning("   타임아웃 발생, 페이지 상태 확인 중...")
                 # 페이지가 부분적으로라도 로드되었는지 확인
                 current_url = page.url
-                print(f"   현재 URL: {current_url}")
+                logging.info(f"   현재 URL: {current_url}")
                 
             except Exception as e:
-                print(f"\n[오류] 페이지 접속 실패: {e}")
-                traceback.print_exc()
+                logging.error(f"페이지 접속 실패: {e}", exc_info=True)
                 return []
             
             # 2. 티켓 오픈 탭 찾기
-            print("\n2. 티켓 오픈 탭 찾는 중...")
+            logging.info("2. 티켓 오픈 탭 찾는 중...")
             tab_found = False
             
             # 모바일 페이지의 일반적인 탭 선택자들
@@ -109,21 +115,23 @@ def get_ticketlink_notices():
             for selector in tab_selectors:
                 try:
                     if page.locator(selector).count() > 0:
+                        # 인간적인 행동 모방: 클릭 전 대기
+                        time.sleep(random.uniform(0.5, 1.5))
                         page.click(selector, timeout=5000)
                         tab_found = True
-                        print(f"   티켓 오픈 탭 클릭 성공: {selector}")
-                        page.wait_for_timeout(2000)
+                        logging.info(f"   티켓 오픈 탭 클릭 성공: {selector}")
+                        # 인간적인 행동 모방: 클릭 후 대기
+                        time.sleep(random.uniform(1.0, 2.5))
                         break
                 except Exception as e:
-                    print(f"   [경고] 탭 클릭 실패 (selector: '{selector}'). 다음으로 넘어갑니다. 오류: {e}")
-                    traceback.print_exc()
+                    logging.warning(f"   탭 클릭 실패 (selector: '{selector}'). 다음으로 넘어갑니다. 오류: {e}")
                     continue
             
             if not tab_found:
-                print("   티켓 오픈 탭을 찾을 수 없음 - 전체 공지사항을 확인합니다")
+                logging.info("   티켓 오픈 탭을 찾을 수 없음 - 전체 공지사항을 확인합니다")
             
             # 3. 스크롤하여 더 많은 콘텐츠 로드 (모바일은 무한 스크롤인 경우가 많음)
-            print("\n3. 페이지 스크롤 중...")
+            logging.info("3. 페이지 스크롤 중...")
             last_height = page.evaluate("document.body.scrollHeight")
             scroll_attempts = 0
             max_scrolls = 5
@@ -132,36 +140,36 @@ def get_ticketlink_notices():
                 # 페이지 끝까지 스크롤
                 try:
                     page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    page.wait_for_timeout(2000)
+                    # 인간적인 행동 모방: 스크롤 후 대기
+                    time.sleep(random.uniform(1.8, 3.2))
                 except Exception as e:
-                    print(f"   [경고] 스크롤 중 오류 발생: {e}. 스크롤을 중단합니다.")
-                    traceback.print_exc()
+                    logging.warning(f"   스크롤 중 오류 발생: {e}. 스크롤을 중단합니다.")
                     break
                 
                 # 새로운 콘텐츠가 로드되었는지 확인
                 new_height = page.evaluate("document.body.scrollHeight")
                 if new_height == last_height:
-                    print(f"   더 이상 로드할 콘텐츠가 없습니다 (스크롤 {scroll_attempts + 1}회)")
+                    logging.info(f"   더 이상 로드할 콘텐츠가 없습니다 (스크롤 {scroll_attempts + 1}회)")
                     break
                 
                 last_height = new_height
                 scroll_attempts += 1
-                print(f"   스크롤 {scroll_attempts}/{max_scrolls} 완료")
+                logging.info(f"   스크롤 {scroll_attempts}/{max_scrolls} 완료")
             
             # 4. 페이지 내용 가져오기
-            print("\n4. 페이지 내용 추출 중...")
+            logging.info("4. 페이지 내용 추출 중...")
             html_content = page.content()
             
             # HTML 저장
             with open("ticketlink_mobile_content.html", "w", encoding="utf-8") as f:
                 f.write(html_content)
-            print("   HTML 저장: ticketlink_mobile_content.html")
+            logging.info("   HTML 저장: ticketlink_mobile_content.html")
             
             # BeautifulSoup으로 파싱
             soup = BeautifulSoup(html_content, "html.parser")
             
             # 5. 공지사항 목록 찾기
-            print("\n5. 공지사항 목록 파싱 중...")
+            logging.info("5. 공지사항 목록 파싱 중...")
             
             # 모바일 페이지의 일반적인 리스트 구조
             items = []
@@ -188,15 +196,15 @@ def get_ticketlink_notices():
                     valid_items = [item for item in items if len(item.get_text(strip=True)) > 10]
                     if valid_items:
                         items = valid_items
-                        print(f"   선택자 '{selector}'로 {len(items)}개 항목 발견")
+                        logging.info(f"   선택자 '{selector}'로 {len(items)}개 항목 발견")
                         break
             
             if not items:
-                print("   [경고] 공지사항 목록을 찾을 수 없습니다")
-                print("   HTML 파일을 확인하여 구조를 분석해주세요")
+                logging.warning("   공지사항 목록을 찾을 수 없습니다")
+                logging.warning("   HTML 파일을 확인하여 구조를 분석해주세요")
             
             # 6. 각 항목 파싱
-            print("\n6. 개별 항목 파싱 중...")
+            logging.info("6. 개별 항목 파싱 중...")
             for idx, item in enumerate(items[:50]):  # 최대 50개
                 try:
                     item_text = item.get_text(strip=True)
@@ -272,24 +280,22 @@ def get_ticketlink_notices():
                         ticket_list.append(ticket_info)
                         
                         if is_ticket_open:
-                            print(f"   [티켓오픈] {title[:40]}...")
+                            logging.info(f"   [티켓오픈] {title[:40]}...")
                         else:
-                            print(f"   [일반공지] {title[:40]}...")
+                            logging.info(f"   [일반공지] {title[:40]}...")
                     
                 except Exception as e:
-                    print(f"   [경고] 항목 파싱 중 오류 발생 (index: {idx}). 건너뜁니다. 오류: {e}")
-                    traceback.print_exc()
+                    logging.warning(f"   항목 파싱 중 오류 발생 (index: {idx}). 건너뜁니다. 오류: {e}")
                     continue
             
-            print(f"\n총 {len(ticket_list)}개의 공지사항을 추출했습니다.")
+            logging.info(f"총 {len(ticket_list)}개의 공지사항을 추출했습니다.")
             
             # 티켓 오픈 공지만 필터링 (선택사항)
             ticket_open_list = [t for t in ticket_list if t['additional_info'] == "티켓오픈"]
-            print(f"이 중 티켓 오픈 공지는 {len(ticket_open_list)}개입니다.")
+            logging.info(f"이 중 티켓 오픈 공지는 {len(ticket_open_list)}개입니다.")
             
         except Exception as e:
-            print(f"\n[오류] 예상치 못한 오류: {e}")
-            traceback.print_exc()
+            logging.error(f"티켓링크 크롤링 중 예상치 못한 오류 발생: {e}", exc_info=True)
             
         finally:
             browser.close()
@@ -297,36 +303,37 @@ def get_ticketlink_notices():
     return ticket_list
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s]: %(message)s')
     # 크롤링 실행
     tickets = get_ticketlink_notices()
     
     # 결과 출력
     if tickets:
-        print("\n" + "="*70)
-        print(f"최종 결과: 총 {len(tickets)}건의 공지사항")
-        print("="*70)
+        logging.info("="*70)
+        logging.info(f"최종 결과: 총 {len(tickets)}건의 공지사항")
+        logging.info("="*70)
         
         # 티켓 오픈 공지만 출력
         ticket_opens = [t for t in tickets if t['additional_info'] == "티켓오픈"]
         
         if ticket_opens:
-            print(f"\n티켓 오픈 공지 ({len(ticket_opens)}건):")
-            print("-"*70)
+            logging.info(f"티켓 오픈 공지 ({len(ticket_opens)}건):")
+            logging.info("-"*70)
             for i, ticket in enumerate(ticket_opens[:10], 1):
-                print(f"\n[{i}] {ticket['title']}")
-                print(f"    날짜: {ticket['open_date']}")
-                print(f"    링크: {ticket['link']}")
+                logging.info(f"[{i}] {ticket['title']}")
+                logging.info(f"    날짜: {ticket['open_date']}")
+                logging.info(f"    링크: {ticket['link']}")
         
         # 일반 공지도 일부 출력
         other_notices = [t for t in tickets if t['additional_info'] != "티켓오픈"]
         if other_notices:
-            print(f"\n\n기타 공지사항 ({len(other_notices)}건 중 5건):")
-            print("-"*70)
+            logging.info(f"기타 공지사항 ({len(other_notices)}건 중 5건):")
+            logging.info("-"*70)
             for i, ticket in enumerate(other_notices[:5], 1):
-                print(f"\n[{i}] {ticket['title']}")
-                print(f"    날짜: {ticket['open_date']}")
+                logging.info(f"[{i}] {ticket['title']}")
+                logging.info(f"    날짜: {ticket['open_date']}")
     else:
-        print("\n공지사항을 찾을 수 없습니다.")
-        print("\n디버깅 파일:")
-        print("- ticketlink_mobile_notice.png: 페이지 스크린샷")
-        print("- ticketlink_mobile_content.html: 페이지 HTML")
+        logging.warning("공지사항을 찾을 수 없습니다.")
+        logging.info("디버깅 파일:")
+        logging.info("- ticketlink_mobile_notice.png: 페이지 스크린샷")
+        logging.info("- ticketlink_mobile_content.html: 페이지 HTML")

@@ -6,14 +6,13 @@ import time
 import random
 import json
 import os
+import logging
+import importlib
+import concurrent.futures
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Callable
 
 from discord_notifier import DiscordNotifier
-from crawlers.interpark_crawler import get_interpark_notices
-from crawlers.yes24_crawler import get_yes24_notices
-from crawlers.melon_crawler import get_melon_notices
-from crawlers.ticketlink_crawler import get_ticketlink_notices
 
 
 def load_config() -> Dict[str, Any]:
@@ -24,18 +23,18 @@ def load_config() -> Dict[str, Any]:
     config_path = os.path.join('data', 'config.json')
 
     if not os.path.exists(config_path):
-        print(f"오류: 설정 파일({config_path})을 찾을 수 없습니다.")
-        print("config.json.example 파일을 복사하여 data/config.json 파일을 생성하고, 내용을 채워주세요.")
+        logging.error(f"설정 파일({config_path})을 찾을 수 없습니다.")
+        logging.error("config.json.example 파일을 복사하여 data/config.json 파일을 생성하고, 내용을 채워주세요.")
         exit(1)
 
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
     except json.JSONDecodeError:
-        print(f"오류: {config_path} 파일이 올바른 JSON 형식이 아닙니다.")
+        logging.error(f"{config_path} 파일이 올바른 JSON 형식이 아닙니다.")
         exit(1)
     except Exception as e:
-        print(f"설정 파일 로드 중 오류 발생: {e}")
+        logging.error(f"설정 파일 로드 중 오류 발생: {e}")
         exit(1)
 
     # 필수 키 확인
@@ -43,11 +42,11 @@ def load_config() -> Dict[str, Any]:
     missing_keys = [key for key in required_keys if key not in config]
 
     if missing_keys:
-        print(f"오류: 설정 파일에 다음 필수 키가 누락되었습니다: {', '.join(missing_keys)}")
+        logging.error(f"설정 파일에 다음 필수 키가 누락되었습니다: {', '.join(missing_keys)}")
         exit(1)
 
     if not config.get("DISCORD_WEBHOOK_URL") or "여기에_디스코드_웹훅_URL을_입력하세요" in config["DISCORD_WEBHOOK_URL"]:
-        print("오류: data/config.json 파일에 디스코드 웹훅 URL을 설정해야 합니다.")
+        logging.error("data/config.json 파일에 디스코드 웹훅 URL을 설정해야 합니다.")
         exit(1)
 
     return config
@@ -67,9 +66,9 @@ def save_all_tickets(tickets: List[Dict[str, Any]], filename: str = "all_tickets
                 "count": len(tickets),
                 "tickets": tickets
             }, f, ensure_ascii=False, indent=2)
-        print(f"{len(tickets)}개의 티켓 정보를 {filepath}에 저장했습니다.")
+        logging.info(f"{len(tickets)}개의 티켓 정보를 {filepath}에 저장했습니다.")
     except Exception as e:
-        print(f"티켓 정보 저장 중 오류 발생: {e}")
+        logging.error(f"티켓 정보 저장 중 오류 발생: {e}")
 
 
 def filter_tickets_by_keyword(tickets: List[Dict[str, Any]], keywords: List[str]) -> List[Dict[str, Any]]:
@@ -87,38 +86,60 @@ def filter_tickets_by_keyword(tickets: List[Dict[str, Any]], keywords: List[str]
     return filtered_tickets
 
 
+def get_crawler_functions(sources: List[str]) -> Dict[str, Callable[[], List[Dict[str, Any]]]]:
+    """
+    crawlers 패키지에서 사용 가능한 크롤러 함수를 동적으로 로드합니다.
+    config.json의 'sources'에 명시된 크롤러만 로드합니다.
+    """
+    crawler_functions = {}
+    for source_name in sources:
+        try:
+            module_name = f"crawlers.{source_name.lower()}_crawler"
+            # ex) crawlers.interpark_crawler
+            module = importlib.import_module(module_name)
+
+            # ex) get_interpark_notices
+            func_name = f"get_{source_name.lower()}_notices"
+            if hasattr(module, func_name):
+                crawler_functions[source_name] = getattr(module, func_name)
+            else:
+                logging.warning(f"'{module_name}' 모듈에서 '{func_name}' 함수를 찾을 수 없습니다.")
+        except ImportError:
+            logging.warning(f"'{source_name}'에 대한 크롤러 모듈을 찾을 수 없습니다. ({module_name})")
+        except Exception as e:
+            logging.error(f"{source_name} 크롤러 로드 중 오류 발생: {e}", exc_info=True)
+            
+    return crawler_functions
+
+
 def collect_all_tickets(sources: List[str]) -> List[Dict[str, Any]]:
     """
-    모든 소스에서 티켓 정보를 수집합니다.
-    
-    Args:
-        sources: 크롤링할 소스 목록
-        
-    Returns:
-        수집된 티켓 정보 리스트
+    모든 소스에서 티켓 정보를 병렬로 수집합니다.
+    concurrent.futures를 사용하여 각 크롤러를 별도의 스레드에서 실행합니다.
     """
     all_tickets = []
-    
-    # 각 소스별로 크롤링
-    for source in sources:
-        try:
-            print(f"\n{source.upper()} 크롤링 시작...")
-            if source.lower() == "interpark":
-                tickets = get_interpark_notices()
-            elif source.lower() == "yes24":
-                tickets = get_yes24_notices()
-            elif source.lower() == "melon":
-                tickets = get_melon_notices()
-            elif source.lower() == "ticketlink":
-                tickets = get_ticketlink_notices()
-            else:
-                print(f"알 수 없는 소스: {source}")
-                continue
-                
-            all_tickets.extend(tickets)
-            print(f"{source.upper()} 크롤링 완료: {len(tickets)}개 수집")
-        except Exception as e:
-            print(f"{source.upper()} 크롤링 중 오류 발생: {e}")
+    crawler_functions = get_crawler_functions(sources)
+
+    if not crawler_functions:
+        logging.error("실행할 크롤러를 찾지 못했습니다. config.json의 'sources' 설정을 확인하세요.")
+        return []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(crawler_functions)) as executor:
+        # 각 크롤러 함수를 실행하고 Future 객체를 딕셔너리에 저장
+        future_to_source = {executor.submit(func): source for source, func in crawler_functions.items()}
+        
+        for future in concurrent.futures.as_completed(future_to_source):
+            source = future_to_source[future]
+            try:
+                # 각 Future의 결과를 가져옵니다 (크롤링 결과).
+                tickets = future.result()
+                if tickets:
+                    all_tickets.extend(tickets)
+                    logging.info(f"{source.upper()} 크롤링 완료: {len(tickets)}개 수집")
+                else:
+                    logging.info(f"{source.upper()} 크롤링 완료: 수집된 정보 없음")
+            except Exception as e:
+                logging.error(f"{source.upper()} 크롤링 중 오류 발생: {e}", exc_info=True)
     
     return all_tickets
 
@@ -137,21 +158,21 @@ def monitor_tickets(config: Dict[str, Any]):
     
     notifier = DiscordNotifier(webhook_url)
     
-    print(f"티켓 모니터링을 시작합니다. 간격: {interval}초")
-    print(f"모니터링 대상 사이트: {', '.join(sources)}")
-    print(f"모니터링 키워드: {', '.join(keywords) if keywords else '없음'}")
+    logging.info(f"티켓 모니터링을 시작합니다. 간격: {interval}초")
+    logging.info(f"모니터링 대상 사이트: {', '.join(sources)}")
+    logging.info(f"모니터링 키워드: {', '.join(keywords) if keywords else '없음'}")
     
     try:
         while True:
             start_time = time.time()
-            print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 티켓 정보 수집 시작")
+            logging.info(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 티켓 정보 수집 시작")
             
             # 1. 티켓 정보 수집
             all_tickets = collect_all_tickets(sources)
             
             # 2. 키워드로 필터링
             filtered_tickets = filter_tickets_by_keyword(all_tickets, keywords)
-            print(f"키워드 필터링 후 {len(filtered_tickets)}개의 티켓이 남았습니다.")
+            logging.info(f"키워드 필터링 후 {len(filtered_tickets)}개의 티켓이 남았습니다.")
             
             # 3. 모든 수집 정보 저장 (필터링 전)
             save_all_tickets(all_tickets)
@@ -159,9 +180,9 @@ def monitor_tickets(config: Dict[str, Any]):
             # 4. 새로운 티켓 정보만 알림 전송 (필터링 후)
             if filtered_tickets:
                 sent_count = notifier.send_batch_notifications(filtered_tickets)
-                print(f"\n{sent_count}개의 새로운 티켓 정보를 디스코드로 전송했습니다.")
+                logging.info(f"{sent_count}개의 새로운 티켓 정보를 디스코드로 전송했습니다.")
             else:
-                print("\n전송할 티켓 정보가 없습니다.")
+                logging.info("전송할 티켓 정보가 없습니다.")
             
             # 5. 다음 실행까지 대기
             elapsed = time.time() - start_time
@@ -172,18 +193,21 @@ def monitor_tickets(config: Dict[str, Any]):
             wait_time += jitter
             
             next_run_str = datetime.fromtimestamp(time.time() + wait_time).strftime('%Y-%m-%d %H:%M:%S')
-            print(f"\n다음 실행 시간: {next_run_str} (약 {wait_time/60:.1f}분 후)")
+            logging.info(f"다음 실행 시간: {next_run_str} (약 {wait_time/60:.1f}분 후)")
             time.sleep(wait_time)
             
     except KeyboardInterrupt:
-        print("\n모니터링을 종료합니다.")
+        logging.info("모니터링을 종료합니다.")
     except Exception as e:
-        print(f"\n모니터링 중 치명적인 오류 발생: {e}")
+        logging.critical(f"모니터링 중 치명적인 오류 발생: {e}", exc_info=True)
         raise
 
 
 def main():
     """메인 실행 함수"""
+    # 로깅 설정
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s]: %(message)s')
+
     # 설정 로드
     config = load_config()
     
