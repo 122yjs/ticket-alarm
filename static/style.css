@@ -622,3 +622,49 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-secondary);
 }
+
+/* Dark Mode Styles */
+.dark body {
+    background-color: #111827; /* gray-900 */
+    color: #d1d5db; /* gray-300 */
+}
+.dark header {
+    background-color: #1f2937; /* gray-800 */
+    border-bottom: 1px solid #374151; /* gray-700 */
+}
+.dark .ticket-card {
+    background-color: #1f2937; /* gray-800 */
+    border-color: #374151; /* gray-700 */
+}
+.dark h1, .dark h2, .dark h3, .dark h4 {
+    color: #f9fafb; /* gray-50 */
+}
+.dark p, .dark span, .dark label, .dark button {
+    color: #d1d5db; /* gray-300 */
+}
+.dark input, .dark select {
+    background-color: #374151; /* gray-700 */
+    border-color: #4b5563; /* gray-600 */
+    color: #f9fafb; /* gray-50 */
+}
+.dark input::placeholder {
+    color: #9ca3af; /* gray-400 */
+}
+.dark .bg-white {
+    background-color: #1f2937 !important; /* gray-800 */
+}
+.dark .text-gray-800 {
+    color: #f9fafb !important; /* gray-50 */
+}
+.dark .text-gray-600 {
+    color: #d1d5db !important; /* gray-300 */
+}
+.dark .text-gray-500 {
+    color: #9ca3af !important; /* gray-400 */
+}
+.dark .border-gray-200 {
+    border-color: #374151 !important; /* gray-700 */
+}
+.dark .hover\:bg-gray-100:hover {
+    background-color: #374151 !important; /* gray-700 */
+}

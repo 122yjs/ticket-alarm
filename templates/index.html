@@ -58,7 +58,10 @@
                 <input type="text" class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-button focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" placeholder="공연명 또는 아티스트 검색">
             </div>
             
-            <div class="flex items-center">
+            <div class="flex items-center space-x-4">
+                <button id="theme-toggle" class="w-10 h-10 flex items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 hover:text-primary">
+                    <i class="ri-sun-line"></i>
+                </button>
                 <button class="text-gray-600 hover:text-primary px-3 py-2 text-sm font-medium">로그인</button>
                 <button class="ml-2 bg-primary text-white px-4 py-2 rounded-button text-sm font-medium whitespace-nowrap hover:bg-primary/90 transition-colors">회원가입</button>
             </div>
@@ -164,7 +167,26 @@
         <main class="flex-1">
             <div class="flex justify-between items-center mb-6">
                  <h2 class="text-xl font-bold">다가오는 티켓 오픈 <span class="text-primary">{{ stats.total_count }}</span></h2>
-                 <!-- 정렬 및 뷰 옵션이 여기에 위치할 예정입니다. -->
+                 <div class="flex items-center space-x-4">
+                    <div class="relative">
+                        <select class="appearance-none bg-white border border-gray-300 rounded-md py-2 pl-3 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary">
+                            <option>최신순</option>
+                            <option>인기순</option>
+                            <option>마감임박순</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                            <i class="ri-arrow-down-s-line"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-1 bg-gray-100 p-1 rounded-md">
+                        <button id="card-view-btn" class="p-1.5 rounded-md bg-white text-primary shadow-sm">
+                            <i class="ri-list-check ri-lg"></i>
+                        </button>
+                        <button id="grid-view-btn" class="p-1.5 rounded-md text-gray-500 hover:bg-white hover:text-primary">
+                            <i class="ri-layout-grid-fill ri-lg"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

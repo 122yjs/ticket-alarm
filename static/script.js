@@ -20,57 +20,74 @@ const elements = {
     ticketsContainer: null,
     loadingSpinner: null,
     noResults: null,
-    refreshBtn: null,
-    platformFilter: null,
-    genreFilter: null,
-    dateFilter: null,
-    sortFilter: null,
     searchInput: null,
-    viewBtns: null,
     lastUpdate: null,
-    footerLastUpdate: null
+    footerLastUpdate: null,
+    platformFilters: null,
+    genreFilters: null,
+    dateFilterButtons: null,
+    dateStartInput: null,
+    dateEndInput: null,
+    sortSelect: null,
+    cardViewBtn: null,
+    gridViewBtn: null,
+    themeToggle: null
 };
 
 // 초기화
-document.addEventListener('DOMContentLoaded', function() {
-    // 서버에서 전달받은 설정값 적용
-    if (window.APP_CONFIG) {
-        isAdmin = window.APP_CONFIG.isAdmin || false;
-        autoRefreshInterval = window.APP_CONFIG.autoRefreshInterval || 3600000;
-        if (window.APP_CONFIG.lastUpdateIso) {
-            lastUpdateTime = new Date(window.APP_CONFIG.lastUpdateIso);
-        }
+const mockTickets = [
+    {
+        id: '1', title: '아이유 콘서트', artist: '아이유', open_date: '2024-08-01T10:00:00', open_date_str: '2024.08.01 10:00',
+        date: '2024.09.21 - 2024.09.22', place: 'KSPO DOME', genre: '콘서트', platform: '멜론티켓', 
+        image_url: 'https://via.placeholder.com/300x200/4f46e5/ffffff?text=IU', d_day: 'D-10', created_at: '2024-07-20T10:00:00', views: 1200
+    },
+    {
+        id: '2', title: '뮤지컬 <헤드윅>', artist: '조정석', open_date: '2024-07-25T14:00:00', open_date_str: '2024.07.25 14:00',
+        date: '2024.08.10 - 2024.10.27', place: '샤롯데씨어터', genre: '뮤지컬', platform: '인터파크', 
+        image_url: 'https://via.placeholder.com/300x200/d946ef/ffffff?text=Hedwig', d_day: 'D-3', created_at: '2024-07-18T10:00:00', views: 850
+    },
+    {
+        id: '3', title: '싸이 흠뻑쇼', artist: '싸이', open_date: '2024-06-10T20:00:00', open_date_str: '2024.06.10 20:00',
+        date: '2024.07.27 - 2024.08.25', place: '전국', genre: '콘서트', platform: 'YES24', 
+        image_url: 'https://via.placeholder.com/300x200/22c55e/ffffff?text=PSY', d_day: null, created_at: '2024-06-01T10:00:00', views: 2500
     }
-    
+];
+
+document.addEventListener('DOMContentLoaded', function() {
     initializeElements();
     initializeEventListeners();
-    initializeDropdowns();
-    loadWishlist(); // 찜 목록 로드
-    loadTickets();
+    loadWishlist();
+    loadInitialTheme();
     
-    // 자동 갱신 타이머 시작 (1시간마다)
-    startAutoRefresh();
-    
-    // 업데이트 시간 표시 갱신
-    updateLastUpdateDisplay();
+    // Use mock data for now
+    currentTickets = mockTickets;
+    filteredTickets = [...mockTickets];
+    renderTickets();
 });
 
 /**
  * DOM 요소 초기화
  */
 function initializeElements() {
-    elements.ticketsContainer = document.getElementById('ticketsContainer');
-    elements.loadingSpinner = document.getElementById('loadingSpinner');
-    elements.noResults = document.getElementById('noResults');
-    elements.refreshBtn = document.getElementById('refreshBtn');
-    elements.platformFilter = document.getElementById('platformFilter');
-    elements.genreFilter = document.getElementById('genreFilter');
-    elements.dateFilter = document.getElementById('dateFilter');
-    elements.sortFilter = document.getElementById('sortFilter');
-    elements.searchInput = document.getElementById('searchInput');
-    elements.viewBtns = document.querySelectorAll('.view-btn');
-    elements.lastUpdate = document.getElementById('lastUpdate');
-    elements.footerLastUpdate = document.getElementById('footerLastUpdate');
+    elements.ticketsContainer = document.querySelector('.grid'); // Updated selector
+    elements.loadingSpinner = document.getElementById('loadingSpinner'); // Assuming you have this element
+    elements.noResults = document.getElementById('noResults'); // Assuming you have this element
+    elements.searchInput = document.querySelector('input[type="text"][placeholder*="검색"]');
+    
+    // Filters
+    elements.platformFilters = document.querySelectorAll('aside input[type="checkbox"][name="platform"]');
+    elements.genreFilters = document.querySelectorAll('aside input[type="checkbox"][name="genre"]');
+    elements.dateFilterButtons = document.querySelectorAll('aside button[data-range]');
+    elements.dateStartInput = document.querySelector('aside input[type="date"]:first-of-type');
+    elements.dateEndInput = document.querySelector('aside input[type="date"]:last-of-type');
+
+    // Sorting and View
+    elements.sortSelect = document.querySelector('main select');
+    elements.cardViewBtn = document.getElementById('card-view-btn');
+    elements.gridViewBtn = document.getElementById('grid-view-btn');
+
+    // Theme
+    elements.themeToggle = document.getElementById('theme-toggle');
 }
 
 /**
@@ -128,64 +145,221 @@ function updateWishlistUI() {
  * 이벤트 리스너 초기화
  */
 function initializeEventListeners() {
-    // 새로고침 버튼 (관리자만)
-    if (elements.refreshBtn && isAdmin) {
-        elements.refreshBtn.addEventListener('click', refreshData);
-    }
-    
-    // 필터 변경
-    elements.platformFilter.addEventListener('change', applyFilters);
-    elements.genreFilter.addEventListener('change', applyFilters);
-    elements.dateFilter.addEventListener('change', applyFilters);
-    elements.sortFilter.addEventListener('change', applySorting);
-    
     // 검색 입력
     let searchTimeout;
-    elements.searchInput.addEventListener('input', function() {
+    elements.searchInput.addEventListener('input', () => {
         clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(applyFilters, 300);
+        searchTimeout = setTimeout(applyFiltersAndSort, 300);
     });
-    
+
+    // 필터 변경
+    document.querySelectorAll('aside input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', applyFiltersAndSort);
+    });
+
+    // 날짜 필터 버튼
+    document.querySelectorAll('aside button[data-range]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Date range logic here
+            applyFiltersAndSort();
+        });
+    });
+    [elements.dateStartInput, elements.dateEndInput].forEach(input => {
+        input.addEventListener('change', applyFiltersAndSort);
+    });
+
+    // 정렬 변경
+    elements.sortSelect.addEventListener('change', applyFiltersAndSort);
+
     // 뷰 변경
-    elements.viewBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const view = this.dataset.view;
-            changeView(view);
-        });
-    });
-    
+    elements.cardViewBtn.addEventListener('click', () => switchView('card'));
+    elements.gridViewBtn.addEventListener('click', () => switchView('grid'));
+
+    // 테마 변경
+    elements.themeToggle.addEventListener('click', toggleTheme);
+
     // 찜하기 버튼 이벤트 위임
-    if (elements.ticketsContainer) {
-        elements.ticketsContainer.addEventListener('click', function(e) {
-            const wishlistBtn = e.target.closest('.wishlist-btn');
-            if (wishlistBtn) {
-                const ticketId = wishlistBtn.dataset.id;
-                toggleWishlist(ticketId);
-            }
-        });
-    }
+    elements.ticketsContainer.addEventListener('click', e => {
+        const wishlistBtn = e.target.closest('.wishlist-btn');
+        if (wishlistBtn) {
+            const ticketId = wishlistBtn.dataset.id;
+            toggleWishlist(ticketId);
+        }
+    });
 
     // 키보드 단축키
-    document.addEventListener('keydown', function(e) {
-        // Ctrl + R: 새로고침 (관리자만)
-        if (e.ctrlKey && e.key === 'r' && isAdmin) {
-            e.preventDefault();
-            refreshData();
-        }
-        
-        // '/': 검색창 포커스
-        if (e.key === '/' && !e.ctrlKey && !e.altKey) {
+    document.addEventListener('keydown', e => {
+        if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
             e.preventDefault();
             elements.searchInput.focus();
         }
     });
 }
 
+function applyFiltersAndSort() {
+    let tempTickets = [...currentTickets];
+
+    // 1. Search Filter
+    const searchTerm = elements.searchInput.value.toLowerCase();
+    if (searchTerm) {
+        tempTickets = tempTickets.filter(ticket => 
+            ticket.title.toLowerCase().includes(searchTerm) || 
+            (ticket.artist && ticket.artist.toLowerCase().includes(searchTerm))
+        );
+    }
+
+    // 2. Platform Filter
+    const selectedPlatforms = [...elements.platformFilters].filter(cb => cb.checked).map(cb => cb.dataset.platform);
+    if (selectedPlatforms.length > 0) {
+        tempTickets = tempTickets.filter(ticket => selectedPlatforms.includes(ticket.platform));
+    }
+
+    // 3. Genre Filter
+    const selectedGenres = [...elements.genreFilters].filter(cb => cb.checked).map(cb => cb.dataset.genre);
+    if (selectedGenres.length > 0) {
+        tempTickets = tempTickets.filter(ticket => selectedGenres.includes(ticket.genre));
+    }
+
+    // 4. Date Filter
+    const startDate = elements.dateStartInput.valueAsDate;
+    const endDate = elements.dateEndInput.valueAsDate;
+    if (startDate) {
+        tempTickets = tempTickets.filter(ticket => new Date(ticket.open_date) >= startDate);
+    }
+    if (endDate) {
+        tempTickets = tempTickets.filter(ticket => new Date(ticket.open_date) <= endDate);
+    }
+
+    // 5. Sorting
+    const sortValue = elements.sortSelect.value;
+    switch (sortValue) {
+        case '인기순': // Placeholder for popularity
+            tempTickets.sort((a, b) => (b.views || 0) - (a.views || 0));
+            break;
+        case '마감임박순':
+            tempTickets.sort((a, b) => new Date(a.open_date) - new Date(b.open_date));
+            break;
+        case '최신순':
+        default:
+            tempTickets.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            break;
+    }
+
+    filteredTickets = tempTickets;
+    renderTickets();
+}
+
+function switchView(view) {
+    currentView = view;
+    const container = elements.ticketsContainer;
+    if (view === 'grid') {
+        container.classList.remove('grid-cols-1');
+        container.classList.add('md:grid-cols-2', 'xl:grid-cols-3');
+        elements.gridViewBtn.classList.add('bg-white', 'text-primary', 'shadow-sm');
+        elements.cardViewBtn.classList.remove('bg-white', 'text-primary', 'shadow-sm');
+    } else { // card view
+        container.classList.add('grid-cols-1');
+        container.classList.remove('md:grid-cols-2', 'xl:grid-cols-3');
+        elements.cardViewBtn.classList.add('bg-white', 'text-primary', 'shadow-sm');
+        elements.gridViewBtn.classList.remove('bg-white', 'text-primary', 'shadow-sm');
+    }
+}
+
+function toggleTheme() {
+    const html = document.documentElement;
+    html.classList.toggle('dark');
+    const isDarkMode = html.classList.contains('dark');
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+    updateThemeIcon(isDarkMode);
+}
+
+function updateThemeIcon(isDarkMode) {
+    const icon = elements.themeToggle.querySelector('i');
+    if (isDarkMode) {
+        icon.classList.remove('ri-sun-line');
+        icon.classList.add('ri-moon-line');
+    } else {
+        icon.classList.remove('ri-moon-line');
+        icon.classList.add('ri-sun-line');
+    }
+}
+
+function loadInitialTheme() {
+    const theme = localStorage.getItem('theme');
+    const isDarkMode = theme === 'dark';
+    if (isDarkMode) {
+        document.documentElement.classList.add('dark');
+    }
+    updateThemeIcon(isDarkMode);
+}
+
+function renderTickets() {
+    const container = elements.ticketsContainer;
+    if (!container) return;
+    container.innerHTML = ''; // Clear existing tickets
+
+    if (filteredTickets.length === 0) {
+        // elements.noResults.classList.remove('hidden');
+        return;
+    }
+
+    // elements.noResults.classList.add('hidden');
+
+    const fragment = document.createDocumentFragment();
+    filteredTickets.forEach(ticket => {
+        const card = createTicketCard(ticket);
+        fragment.appendChild(card);
+    });
+
+    container.appendChild(fragment);
+    updateWishlistUI();
+}
+
+function createTicketCard(ticket) {
+    const div = document.createElement('div');
+    div.className = 'ticket-card bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 transition-all duration-300 dark:bg-gray-800 dark:border-gray-700';
+    div.dataset.ticketId = ticket.id;
+
+    const dDay = ticket.d_day ? `<div class="absolute bottom-3 left-3 bg-primary text-white text-xs px-2 py-1 rounded-full">${ticket.d_day}</div>` : '';
+
+    div.innerHTML = `
+        <div class="relative">
+            <img src="${ticket.image_url}" alt="${ticket.title}" class="w-full h-48 object-cover object-top">
+            <button class="wishlist-btn absolute top-3 right-3 bg-white rounded-full p-1 shadow-md text-gray-400 hover:text-primary cursor-pointer dark:bg-gray-700 dark:text-gray-400" data-id="${ticket.id}">
+                <div class="w-6 h-6 flex items-center justify-center">
+                    <i class="ri-heart-line"></i>
+                </div>
+            </button>
+            ${dDay}
+        </div>
+        <div class="p-4">
+            <div class="flex items-center mb-2">
+                <div class="w-5 h-5 flex items-center justify-center mr-1">
+                    <i class="ri-ticket-line text-primary"></i>
+                </div>
+                <span class="text-xs text-gray-500 dark:text-gray-400">${ticket.open_date_str} 오픈</span>
+            </div>
+            <h3 class="font-bold text-gray-800 mb-1 dark:text-gray-200">${ticket.title}</h3>
+            <p class="text-sm text-gray-600 mb-3 dark:text-gray-400">${ticket.date} | ${ticket.place}</p>
+            <div class="flex items-center justify-between">
+                <span class="text-xs px-2 py-1 bg-gray-100 rounded-full dark:bg-gray-700 dark:text-gray-300">${ticket.genre}</span>
+                <div class="flex items-center">
+                    <div class="w-5 h-5 flex items-center justify-center mr-1 text-blue-500">
+                        <i class="ri-melody-fill"></i>
+                    </div>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">${ticket.platform}</span>
+                </div>
+            </div>
+        </div>
+    `;
+    return div;
+}
+
 /**
  * 드롭다운 초기화
  */
 function initializeDropdowns() {
-    // 모든 드롭다운 요소 찾기
+    // This function might be removed or refactored if no longer needed
     const dropdowns = document.querySelectorAll('.dropdown');
     
     dropdowns.forEach(dropdown => {
