@@ -70,10 +70,74 @@
         <!-- 좌측 필터 사이드바 -->
         <aside class="w-64 flex-shrink-0">
             <div class="sticky top-24 space-y-6">
-                <!-- 필터 및 정렬 기능이 여기에 위치할 예정입니다. -->
-                <div>
-                    <h3 class="font-bold text-lg mb-3">필터</h3>
-                    <p class="text-sm text-gray-500">필터 옵션이 여기에 표시됩니다.</p>
+                <!-- 플랫폼 필터 -->
+                <div class="bg-white rounded-lg border border-gray-200 p-4">
+                    <h4 class="font-bold text-sm mb-3">플랫폼</h4>
+                    <div class="space-y-2">
+                        <label class="flex items-center text-sm">
+                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <span class="ml-2 text-gray-700">멜론티켓</span>
+                        </label>
+                        <label class="flex items-center text-sm">
+                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <span class="ml-2 text-gray-700">YES24</span>
+                        </label>
+                        <label class="flex items-center text-sm">
+                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <span class="ml-2 text-gray-700">인터파크</span>
+                        </label>
+                        <label class="flex items-center text-sm">
+                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <span class="ml-2 text-gray-700">티켓링크</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 장르 필터 -->
+                <div class="bg-white rounded-lg border border-gray-200 p-4">
+                    <h4 class="font-bold text-sm mb-3">장르</h4>
+                    <div class="space-y-2">
+                        <label class="flex items-center text-sm">
+                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <span class="ml-2 text-gray-700">콘서트</span>
+                        </label>
+                        <label class="flex items-center text-sm">
+                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <span class="ml-2 text-gray-700">뮤지컬</span>
+                        </label>
+                        <label class="flex items-center text-sm">
+                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <span class="ml-2 text-gray-700">연극</span>
+                        </label>
+                        <label class="flex items-center text-sm">
+                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <span class="ml-2 text-gray-700">클래식</span>
+                        </label>
+                        <label class="flex items-center text-sm">
+                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <span class="ml-2 text-gray-700">전시</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 날짜 필터 -->
+                <div class="bg-white rounded-lg border border-gray-200 p-4">
+                    <h4 class="font-bold text-sm mb-3">날짜</h4>
+                    <div class="space-y-2">
+                        <button class="w-full text-left text-sm py-1.5 px-2 rounded-md hover:bg-gray-100">오늘</button>
+                        <button class="w-full text-left text-sm py-1.5 px-2 rounded-md hover:bg-gray-100">이번 주</button>
+                        <button class="w-full text-left text-sm py-1.5 px-2 rounded-md hover:bg-gray-100">이번 달</button>
+                    </div>
+                    <div class="mt-4 space-y-2">
+                        <div>
+                            <label class="text-xs text-gray-500">시작일</label>
+                            <input type="date" class="w-full mt-1 text-sm border border-gray-200 rounded-button px-2 py-1 focus:ring-1 focus:ring-primary focus:border-primary">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500">종료일</label>
+                            <input type="date" class="w-full mt-1 text-sm border border-gray-200 rounded-button px-2 py-1 focus:ring-1 focus:ring-primary focus:border-primary">
+                        </div>
+                    </div>
                 </div>
                  <div>
                     <h3 class="font-bold text-lg mb-3">알림 설정</h3>
