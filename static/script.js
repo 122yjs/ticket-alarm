@@ -7,6 +7,7 @@
 // 전역 변수
 let currentTickets = [];
 let filteredTickets = [];
+let wishlist = []; // 찜 목록
 let currentView = 'grid';
 let isLoading = false;
 let autoRefreshTimer = null;
@@ -43,6 +44,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     initializeElements();
     initializeEventListeners();
+    initializeDropdowns();
+    loadWishlist(); // 찜 목록 로드
     loadTickets();
     
     // 자동 갱신 타이머 시작 (1시간마다)
@@ -68,6 +71,57 @@ function initializeElements() {
     elements.viewBtns = document.querySelectorAll('.view-btn');
     elements.lastUpdate = document.getElementById('lastUpdate');
     elements.footerLastUpdate = document.getElementById('footerLastUpdate');
+}
+
+/**
+ * 찜 목록을 로컬 저장소에서 불러옵니다.
+ */
+function loadWishlist() {
+    const storedWishlist = localStorage.getItem('ticketWishlist');
+    if (storedWishlist) {
+        wishlist = JSON.parse(storedWishlist);
+    }
+}
+
+/**
+ * 찜 목록을 로컬 저장소에 저장합니다.
+ */
+function saveWishlist() {
+    localStorage.setItem('ticketWishlist', JSON.stringify(wishlist));
+}
+
+/**
+ * 찜 상태를 토글합니다.
+ * @param {string} ticketId - 티켓 ID
+ */
+function toggleWishlist(ticketId) {
+    const index = wishlist.indexOf(ticketId);
+    if (index > -1) {
+        wishlist.splice(index, 1); // 찜 목록에서 제거
+    } else {
+        wishlist.push(ticketId); // 찜 목록에 추가
+    }
+    saveWishlist();
+    updateWishlistUI();
+}
+
+/**
+ * 찜 목록 UI를 업데이트합니다.
+ */
+function updateWishlistUI() {
+    document.querySelectorAll('.wishlist-btn').forEach(btn => {
+        const ticketId = btn.dataset.id;
+        const icon = btn.querySelector('i');
+        if (wishlist.includes(ticketId)) {
+            icon.classList.remove('ri-heart-line');
+            icon.classList.add('ri-heart-fill');
+            btn.classList.add('text-primary');
+        } else {
+            icon.classList.remove('ri-heart-fill');
+            icon.classList.add('ri-heart-line');
+            btn.classList.remove('text-primary');
+        }
+    });
 }
 
 /**
@@ -100,6 +154,17 @@ function initializeEventListeners() {
         });
     });
     
+    // 찜하기 버튼 이벤트 위임
+    if (elements.ticketsContainer) {
+        elements.ticketsContainer.addEventListener('click', function(e) {
+            const wishlistBtn = e.target.closest('.wishlist-btn');
+            if (wishlistBtn) {
+                const ticketId = wishlistBtn.dataset.id;
+                toggleWishlist(ticketId);
+            }
+        });
+    }
+
     // 키보드 단축키
     document.addEventListener('keydown', function(e) {
         // Ctrl + R: 새로고침 (관리자만)
@@ -114,6 +179,104 @@ function initializeEventListeners() {
             elements.searchInput.focus();
         }
     });
+}
+
+/**
+ * 드롭다운 초기화
+ */
+function initializeDropdowns() {
+    // 모든 드롭다운 요소 찾기
+    const dropdowns = document.querySelectorAll('.dropdown');
+    
+    dropdowns.forEach(dropdown => {
+        const button = dropdown.querySelector('.dropdown-button');
+        const menu = dropdown.querySelector('.dropdown-menu');
+        const options = dropdown.querySelectorAll('.dropdown-option');
+        
+        if (!button || !menu) return;
+        
+        // 드롭다운 버튼 클릭
+        button.addEventListener('click', function(e) {
+            e.stopPropagation();
+            
+            // 다른 드롭다운 닫기
+            dropdowns.forEach(otherDropdown => {
+                if (otherDropdown !== dropdown) {
+                    otherDropdown.classList.remove('active');
+                }
+            });
+            
+            // 현재 드롭다운 토글
+            dropdown.classList.toggle('active');
+        });
+        
+        // 옵션 선택
+        options.forEach(option => {
+            option.addEventListener('click', function(e) {
+                e.stopPropagation();
+                
+                const value = this.dataset.value;
+                const text = this.textContent;
+                
+                // 버튼 텍스트 업데이트
+                const buttonText = button.querySelector('.dropdown-text');
+                if (buttonText) {
+                    buttonText.textContent = text;
+                }
+                
+                // 선택된 옵션 표시
+                options.forEach(opt => opt.classList.remove('selected'));
+                this.classList.add('selected');
+                
+                // 드롭다운 닫기
+                dropdown.classList.remove('active');
+                
+                // 해당 필터 업데이트
+                updateFilterFromDropdown(dropdown, value);
+            });
+        });
+    });
+    
+    // 외부 클릭 시 모든 드롭다운 닫기
+    document.addEventListener('click', function() {
+        dropdowns.forEach(dropdown => {
+            dropdown.classList.remove('active');
+        });
+    });
+}
+
+/**
+ * 드롭다운에서 필터 업데이트
+ */
+function updateFilterFromDropdown(dropdown, value) {
+    const filterId = dropdown.dataset.filter;
+    
+    switch (filterId) {
+        case 'platform':
+            if (elements.platformFilter) {
+                elements.platformFilter.value = value;
+                applyFilters();
+            }
+            break;
+        case 'genre':
+            if (elements.genreFilter) {
+                elements.genreFilter.value = value;
+                applyFilters();
+            }
+            break;
+        case 'date':
+            if (elements.dateFilter) {
+                elements.dateFilter.value = value;
+                applyFilters();
+            }
+            break;
+        case 'sort':
+            if (elements.sortFilter) {
+                elements.sortFilter.value = value;
+                applySorting();
+            }
+            break;
+    }
 }
 
 /**
@@ -243,10 +406,10 @@ async function applyFilters() {
     try {
         const params = new URLSearchParams();
         
-        const platform = elements.platformFilter.value;
-        const genre = elements.genreFilter.value;
-        const dateFilter = elements.dateFilter.value;
-        const search = elements.searchInput.value.trim();
+        const platform = elements.platformFilter?.value || '전체';
+        const genre = elements.genreFilter?.value || '전체';
+        const dateFilter = elements.dateFilter?.value || '전체';
+        const search = elements.searchInput?.value?.trim() || '';
         
         if (platform && platform !== '전체') params.append('platform', platform);
         if (genre && genre !== '전체') params.append('genre', genre);
@@ -256,16 +419,35 @@ async function applyFilters() {
         params.append('limit', '100');
         
         const response = await fetch(`/api/tickets?${params.toString()}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
         
         filteredTickets = data.tickets || [];
         applySorting(); // 필터 적용 후 정렬도 함께 적용
         
+        // 필터 결과 통계 업데이트
+        updateFilterStats(data.total || filteredTickets.length);
+        
     } catch (error) {
         console.error('필터 적용 실패:', error);
         showError('필터 적용에 실패했습니다.');
+        filteredTickets = currentTickets; // 원본 데이터로 복원
+        applySorting();
     } finally {
         showLoading(false);
+    }
+}
+
+/**
+ * 필터 결과 통계 업데이트
+ */
+function updateFilterStats(totalCount) {
+    const statsElement = document.querySelector('.filter-stats');
+    if (statsElement) {
+        statsElement.textContent = `총 ${totalCount}개의 티켓`;
     }
 }
 
@@ -287,6 +469,9 @@ function renderTickets(tickets) {
         const ticketElement = createTicketElement(ticket);
         container.appendChild(ticketElement);
     });
+
+    // 찜하기 UI 업데이트
+    updateWishlistUI();
 }
 
 /**
@@ -616,9 +801,12 @@ document.head.appendChild(style);
  * 정렬 적용
  */
 function applySorting() {
-    if (filteredTickets.length === 0) return;
+    if (filteredTickets.length === 0) {
+        renderTickets([]);
+        return;
+    }
     
-    const sortValue = elements.sortFilter.value;
+    const sortValue = elements.sortFilter?.value || 'open_date_asc';
     const sortedTickets = [...filteredTickets];
     
     switch (sortValue) {
@@ -631,6 +819,7 @@ function applySorting() {
             break;
             
         case 'open_date_asc':
+        default:
             sortedTickets.sort((a, b) => {
                 const dateA = parseTicketDate(a.open_date);
                 const dateB = parseTicketDate(b.open_date);
@@ -654,6 +843,14 @@ function applySorting() {
             });
             break;
             
+        case 'artist_asc':
+            sortedTickets.sort((a, b) => {
+                const artistA = extractArtistName(a.title || '').toLowerCase();
+                const artistB = extractArtistName(b.title || '').toLowerCase();
+                return artistA.localeCompare(artistB, 'ko');
+            });
+            break;
+            
         case 'popularity_desc':
             // 인기순은 수집 시간이 최근인 것을 우선으로 정렬
             sortedTickets.sort((a, b) => {
@@ -665,6 +862,28 @@ function applySorting() {
     }
     
     renderTickets(sortedTickets);
+}
+
+/**
+ * 아티스트 이름 추출 (제목에서)
+ */
+function extractArtistName(title) {
+    // 간단한 아티스트 이름 추출 로직
+    // 예: "아이유 콘서트" -> "아이유"
+    const patterns = [
+        /^([가-힣a-zA-Z0-9\s]+)\s+(콘서트|공연|투어|리사이틀)/,
+        /^([가-힣a-zA-Z0-9\s]+)\s+/,
+        /([가-힣a-zA-Z0-9]+)/
+    ];
+    
+    for (const pattern of patterns) {
+        const match = title.match(pattern);
+        if (match && match[1]) {
+            return match[1].trim();
+        }
+    }
+    
+    return title;
 }
 
 /**
