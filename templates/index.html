@@ -55,7 +55,7 @@
                         <i class="ri-search-line"></i>
                     </div>
                 </div>
-                <input type="text" class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-button focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" placeholder="공연명 또는 아티스트 검색">
+                <input id="search-input" type="text" class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-button focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" placeholder="공연명 또는 아티스트 검색">
             </div>
             
             <div class="flex items-center space-x-4">
@@ -72,25 +72,25 @@
     <div class="container mx-auto px-4 py-6 flex gap-8">
         <!-- 좌측 필터 사이드바 -->
         <aside class="w-64 flex-shrink-0">
-            <div class="sticky top-24 space-y-6">
+            <div class="sticky top-24 space-y-6 max-h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar pr-4">
                 <!-- 플랫폼 필터 -->
                 <div class="bg-white rounded-lg border border-gray-200 p-4">
                     <h4 class="font-bold text-sm mb-3">플랫폼</h4>
                     <div class="space-y-2">
                         <label class="flex items-center text-sm">
-                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" name="platform" data-platform="멜론티켓" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
                             <span class="ml-2 text-gray-700">멜론티켓</span>
                         </label>
                         <label class="flex items-center text-sm">
-                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" name="platform" data-platform="YES24" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
                             <span class="ml-2 text-gray-700">YES24</span>
                         </label>
                         <label class="flex items-center text-sm">
-                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" name="platform" data-platform="인터파크" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
                             <span class="ml-2 text-gray-700">인터파크</span>
                         </label>
                         <label class="flex items-center text-sm">
-                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" name="platform" data-platform="티켓링크" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
                             <span class="ml-2 text-gray-700">티켓링크</span>
                         </label>
                     </div>
@@ -101,23 +101,23 @@
                     <h4 class="font-bold text-sm mb-3">장르</h4>
                     <div class="space-y-2">
                         <label class="flex items-center text-sm">
-                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" name="genre" data-genre="콘서트" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
                             <span class="ml-2 text-gray-700">콘서트</span>
                         </label>
                         <label class="flex items-center text-sm">
-                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" name="genre" data-genre="뮤지컬" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
                             <span class="ml-2 text-gray-700">뮤지컬</span>
                         </label>
                         <label class="flex items-center text-sm">
-                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" name="genre" data-genre="연극" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
                             <span class="ml-2 text-gray-700">연극</span>
                         </label>
                         <label class="flex items-center text-sm">
-                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" name="genre" data-genre="클래식" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
                             <span class="ml-2 text-gray-700">클래식</span>
                         </label>
                         <label class="flex items-center text-sm">
-                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" name="genre" data-genre="전시" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary">
                             <span class="ml-2 text-gray-700">전시</span>
                         </label>
                     </div>
@@ -127,18 +127,18 @@
                 <div class="bg-white rounded-lg border border-gray-200 p-4">
                     <h4 class="font-bold text-sm mb-3">날짜</h4>
                     <div class="space-y-2">
-                        <button class="w-full text-left text-sm py-1.5 px-2 rounded-md hover:bg-gray-100">오늘</button>
-                        <button class="w-full text-left text-sm py-1.5 px-2 rounded-md hover:bg-gray-100">이번 주</button>
-                        <button class="w-full text-left text-sm py-1.5 px-2 rounded-md hover:bg-gray-100">이번 달</button>
+                        <button data-range="today" class="w-full text-left text-sm py-1.5 px-2 rounded-md hover:bg-gray-100">오늘</button>
+                        <button data-range="week" class="w-full text-left text-sm py-1.5 px-2 rounded-md hover:bg-gray-100">이번 주</button>
+                        <button data-range="month" class="w-full text-left text-sm py-1.5 px-2 rounded-md hover:bg-gray-100">이번 달</button>
                     </div>
                     <div class="mt-4 space-y-2">
                         <div>
                             <label class="text-xs text-gray-500">시작일</label>
-                            <input type="date" class="w-full mt-1 text-sm border border-gray-200 rounded-button px-2 py-1 focus:ring-1 focus:ring-primary focus:border-primary">
+                            <input id="date-start" type="date" class="w-full mt-1 text-sm border border-gray-200 rounded-button px-2 py-1 focus:ring-1 focus:ring-primary focus:border-primary">
                         </div>
                         <div>
                             <label class="text-xs text-gray-500">종료일</label>
-                            <input type="date" class="w-full mt-1 text-sm border border-gray-200 rounded-button px-2 py-1 focus:ring-1 focus:ring-primary focus:border-primary">
+                            <input id="date-end" type="date" class="w-full mt-1 text-sm border border-gray-200 rounded-button px-2 py-1 focus:ring-1 focus:ring-primary focus:border-primary">
                         </div>
                     </div>
                 </div>
@@ -169,10 +169,10 @@
                  <h2 class="text-xl font-bold">다가오는 티켓 오픈 <span class="text-primary">{{ stats.total_count }}</span></h2>
                  <div class="flex items-center space-x-4">
                     <div class="relative">
-                        <select class="appearance-none bg-white border border-gray-300 rounded-md py-2 pl-3 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary">
-                            <option>최신순</option>
-                            <option>인기순</option>
-                            <option>마감임박순</option>
+                        <select id="sort-select" class="appearance-none bg-white border border-gray-300 rounded-md py-2 pl-3 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary">
+                            <option value="최신순">최신순</option>
+                            <option value="인기순">인기순</option>
+                            <option value="마감임박순">마감임박순</option>
                         </select>
                         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
                             <i class="ri-arrow-down-s-line"></i>
@@ -189,7 +189,7 @@
                 </div>
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <div id="tickets-container" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {% for ticket in tickets %}
                 <!-- 티켓 카드 -->
                 <div class="ticket-card bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 transition-all duration-300" data-ticket-id="{{ ticket.id }}">
