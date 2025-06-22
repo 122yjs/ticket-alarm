@@ -5,16 +5,44 @@ import random
 import time
 import json
 import traceback
+import logging
 
-def get_ticketlink_notices():
-    """티켓링크 모바일 웹사이트에서 티켓 오픈 공지사항을 크롤링하는 함수"""
+def get_ticketlink_notices(max_retries=3, retry_delay=2):
+    """티켓링크 모바일 웹사이트에서 티켓 오픈 공지사항을 크롤링하는 함수
+    
+    Args:
+        max_retries (int): 최대 재시도 횟수
+        retry_delay (int): 재시도 간격 (초)
+    
+    Returns:
+        list: 크롤링된 티켓 정보 리스트
+    """
     logging.info("티켓링크 모바일 크롤링 시작...")
+    
+    for attempt in range(max_retries):
+        if attempt > 0:
+            wait_time = retry_delay * (2 ** (attempt - 1))  # 지수 백오프
+            logging.info(f"재시도 {attempt}/{max_retries - 1} - {wait_time}초 대기 중...")
+            time.sleep(wait_time)
+        
+        try:
+            return _crawl_ticketlink_with_retry()
+        except Exception as e:
+            logging.error(f"시도 {attempt + 1} 실패: {e}")
+            if attempt == max_retries - 1:
+                logging.error("모든 재시도 실패")
+                return []
+    
+    return []
+
+def _crawl_ticketlink_with_retry():
+    """실제 크롤링 로직을 수행하는 내부 함수"""
     ticket_list = []
     
     with sync_playwright() as p:
-        # 모바일 브라우저 설정
+        # 모바일 브라우저 설정 - 안정성 개선
         browser = p.chromium.launch(
-            headless=False,  # 디버깅을 위해 False (나중에 True로 변경)
+            headless=True,  # 안정성을 위해 headless 모드 사용
             args=[
                 '--disable-blink-features=AutomationControlled',
                 '--no-sandbox',
@@ -23,29 +51,42 @@ def get_ticketlink_notices():
                 '--disable-gpu',
                 '--disable-web-security',
                 '--disable-features=IsolateOrigins,site-per-process',
-                # '--window-size=430,932'  # iPhone 14 Pro Max 크기 -> viewport로 대체
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--disable-features=TranslateUI',
+                '--disable-ipc-flooding-protection'
             ]
         )
         
         try:
             # 모바일 디바이스 설정 (iPhone 15 Pro)
             # User-Agent를 최신 모바일 기기로 위장
-            user_agent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+            user_agent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1"
             
             context = browser.new_context(
                 user_agent=user_agent,
-                # 실제 모바일 기기의 화면 해상도로 viewport 설정
                 viewport={'width': 393, 'height': 852},
                 locale='ko-KR',
                 timezone_id='Asia/Seoul',
                 ignore_https_errors=True,
-                # geolocation={'longitude': 127.0276, 'latitude': 37.4979}, # 필요시 위치정보 추가
-                # permissions=['geolocation']
+                extra_http_headers={
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'DNT': '1',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1'
+                }
             )
             
             page = context.new_page()
             
-            # Anti-detection 설정
+            # 페이지 타임아웃 설정
+            page.set_default_navigation_timeout(30000)
+            page.set_default_timeout(30000)
+            
+            # 강화된 Anti-detection 설정
             page.add_init_script("""
                 // Override the navigator.webdriver property
                 Object.defineProperty(navigator, 'webdriver', {
@@ -57,10 +98,20 @@ def get_ticketlink_notices():
                     get: () => 5
                 });
                 
-                // Hide automation
+                // Hide automation indicators
                 window.chrome = {
                     runtime: {},
                 };
+                
+                // Override plugins
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5]
+                });
+                
+                // Override languages
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['ko-KR', 'ko', 'en-US', 'en']
+                });
                 
                 // Override permissions
                 const originalQuery = window.navigator.permissions.query;

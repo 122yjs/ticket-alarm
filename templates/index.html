@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>티켓 오픈 모니터 - 실시간 공연 티켓 알림</title>
+    
+    <!-- CSS 스타일 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="/static/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- 헤더 -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-ticket-alt"></i>
+                    <h1>티켓 오픈 모니터</h1>
+                </div>
+                <div class="header-actions">
+                    <button id="refreshBtn" class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i>
+                        새로고침
+                    </button>
+                    <div class="last-update">
+                        <i class="fas fa-clock"></i>
+                        <span id="lastUpdate">{{ last_update }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 메인 컨텐츠 -->
+    <main class="main">
+        <div class="container">
+            <!-- 통계 대시보드 -->
+            <section class="stats-section">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-ticket-alt"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>전체 티켓</h3>
+                            <p class="stat-number">{{ stats.total_count }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon today">
+                            <i class="fas fa-calendar-day"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>오늘 오픈</h3>
+                            <p class="stat-number">{{ stats.today_count }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon tomorrow">
+                            <i class="fas fa-calendar-plus"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>내일 오픈</h3>
+                            <p class="stat-number">{{ stats.tomorrow_count }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon week">
+                            <i class="fas fa-calendar-week"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>이번 주</h3>
+                            <p class="stat-number">{{ stats.this_week_count }}</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 필터 섹션 -->
+            <section class="filter-section">
+                <div class="filter-container">
+                    <div class="filter-group">
+                        <label for="platformFilter">플랫폼</label>
+                        <select id="platformFilter" class="filter-select">
+                            <option value="전체">전체 플랫폼</option>
+                            {% for platform, count in stats.platform_counts.items() %}
+                            <option value="{{ platform }}">{{ platform }} ({{ count }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="genreFilter">장르</label>
+                        <select id="genreFilter" class="filter-select">
+                            <option value="전체">전체 장르</option>
+                            {% for genre, count in stats.genre_counts.items() %}
+                            {% if count > 0 %}
+                            <option value="{{ genre }}">{{ genre }} ({{ count }})</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="dateFilter">날짜</label>
+                        <select id="dateFilter" class="filter-select">
+                            <option value="전체">전체 기간</option>
+                            <option value="today">오늘</option>
+                            <option value="tomorrow">내일</option>
+                            <option value="week">이번 주</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group search-group">
+                        <label for="searchInput">검색</label>
+                        <div class="search-container">
+                            <input type="text" id="searchInput" placeholder="공연명, 장소 검색..." class="search-input">
+                            <i class="fas fa-search search-icon"></i>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 티켓 목록 -->
+            <section class="tickets-section">
+                <div class="section-header">
+                    <h2>티켓 목록</h2>
+                    <div class="view-options">
+                        <button class="view-btn active" data-view="grid">
+                            <i class="fas fa-th-large"></i>
+                        </button>
+                        <button class="view-btn" data-view="list">
+                            <i class="fas fa-list"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="ticketsContainer" class="tickets-grid">
+                    <!-- 티켓 카드들이 여기에 동적으로 로드됩니다 -->
+                </div>
+                
+                <div id="loadingSpinner" class="loading-spinner" style="display: none;">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>티켓 정보를 불러오는 중...</p>
+                </div>
+                
+                <div id="noResults" class="no-results" style="display: none;">
+                    <i class="fas fa-search"></i>
+                    <h3>검색 결과가 없습니다</h3>
+                    <p>다른 검색어나 필터를 시도해보세요.</p>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- 푸터 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <p>&copy; 2024 티켓 오픈 모니터. 실시간 공연 티켓 알림 시스템</p>
+                    <p>마지막 업데이트: <span id="footerLastUpdate">{{ last_update }}</span></p>
+                </div>
+                <div class="footer-links">
+                    <a href="#" class="footer-link">도움말</a>
+                    <a href="#" class="footer-link">문의하기</a>
+                    <a href="#" class="footer-link">GitHub</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="/static/script.js"></script>
+</body>
+</html>
