@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>티켓 오픈 알리미</title>
+    <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+    <script>tailwind.config={theme:{extend:{colors:{primary:'#4f46e5',secondary:'#6366f1'},borderRadius:{'none':'0px','sm':'4px',DEFAULT:'8px','md':'12px','lg':'16px','xl':'20px','2xl':'24px','3xl':'32px','full':'9999px','button':'8px'}}}}</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.min.css">
+    <style>
+        :where([class^="ri-"])::before { content: "\f3c2"; }
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        .ticket-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- 헤더 -->
+    <header class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center">
+                <h1 class="text-2xl font-['Pacifico'] text-primary mr-8">logo</h1>
+            </div>
+            
+            <div class="relative flex-1 max-w-xl mx-4">
+                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                    <div class="w-5 h-5 flex items-center justify-center text-gray-400">
+                        <i class="ri-search-line"></i>
+                    </div>
+                </div>
+                <input type="text" class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-button focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" placeholder="공연명 또는 아티스트 검색">
+            </div>
+            
+            <div class="flex items-center">
+                <button class="text-gray-600 hover:text-primary px-3 py-2 text-sm font-medium">로그인</button>
+                <button class="ml-2 bg-primary text-white px-4 py-2 rounded-button text-sm font-medium whitespace-nowrap hover:bg-primary/90 transition-colors">회원가입</button>
+            </div>
+        </div>
+        
+        <!-- 필터 영역 -->
+        <div class="container mx-auto px-4 py-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-2">
+                <span class="text-sm text-gray-500">정렬:</span>
+                <div class="inline-flex p-1 bg-gray-100 rounded-full">
+                    <button class="px-3 py-1 text-sm rounded-full bg-white shadow-sm text-primary font-medium whitespace-nowrap">시간순</button>
+                    <button class="px-3 py-1 text-sm rounded-full text-gray-600 font-medium whitespace-nowrap">공연순</button>
+                    <button class="px-3 py-1 text-sm rounded-full text-gray-600 font-medium whitespace-nowrap">아티스트순</button>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <div class="relative">
+                    <button id="genreDropdownButton" class="flex items-center text-sm text-gray-700 border border-gray-200 rounded-button px-3 py-2 whitespace-nowrap">
+                        <span>모든 장르</span>
+                        <div class="w-4 h-4 flex items-center justify-center ml-2">
+                            <i class="ri-arrow-down-s-line"></i>
+                        </div>
+                    </button>
+                    <div id="genreDropdown" class="hidden absolute z-10 mt-1 bg-white rounded-md shadow-lg w-48 py-1 border border-gray-100">
+                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">모든 장르</a>
+                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">콘서트</a>
+                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">뮤지컬</a>
+                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">연극</a>
+                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">클래식</a>
+                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">전시</a>
+                    </div>
+                </div>
+                
+                <div class="relative">
+                    <button id="dateDropdownButton" class="flex items-center text-sm text-gray-700 border border-gray-200 rounded-button px-3 py-2 whitespace-nowrap">
+                        <span>날짜 선택</span>
+                        <div class="w-4 h-4 flex items-center justify-center ml-2">
+                            <i class="ri-calendar-line"></i>
+                        </div>
+                    </button>
+                    <div id="dateDropdown" class="hidden absolute z-10 mt-1 bg-white rounded-md shadow-lg p-3 border border-gray-100">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">시작일</label>
+                                <input type="date" class="w-full text-sm border border-gray-200 rounded-button px-2 py-1">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">종료일</label>
+                                <input type="date" class="w-full text-sm border border-gray-200 rounded-button px-2 py-1">
+                            </div>
+                        </div>
+                        <div class="mt-3 flex justify-end">
+                            <button class="bg-primary text-white px-3 py-1 rounded-button text-sm whitespace-nowrap">적용</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6 flex">
+        <!-- 메인 콘텐츠 영역 -->
+        <div class="flex-1 mr-6">
+            <h2 class="text-xl font-bold mb-6">다가오는 티켓 오픈 <span class="text-primary">32</span></h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- 티켓 카드 1 -->
+                <div class="ticket-card bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 transition-all duration-300">
+                    <div class="relative">
+                        <img src="https://readdy.ai/api/search-image?query=concert%20poster%20for%20BTS%20world%20tour%2C%20professional%20photography%2C%20high%20quality%2C%20vibrant%20colors%2C%20dramatic%20lighting%2C%20minimalist%20design%2C%20clear%20text&width=600&height=400&seq=1&orientation=landscape" alt="BTS 콘서트" class="w-full h-48 object-cover object-top">
+                        <div class="absolute top-3 right-3 bg-white rounded-full p-1 shadow-md">
+                            <div class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-primary cursor-pointer">
+                                <i class="ri-heart-line"></i>
+                            </div>
+                        </div>
+                        <div class="absolute bottom-3 left-3 bg-primary text-white text-xs px-2 py-1 rounded-full">D-2</div>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex items-center mb-2">
+                            <div class="w-5 h-5 flex items-center justify-center mr-1">
+                                <i class="ri-ticket-line text-primary"></i>
+                            </div>
+                            <span class="text-xs text-gray-500">2025.06.24 오후 8:00 오픈</span>
+                        </div>
+                        <h3 class="font-bold text-gray-800 mb-1">BTS WORLD TOUR 'MAPS OF THE SOUL'</h3>
+                        <p class="text-sm text-gray-600 mb-3">2025.08.15 - 2025.08.17 | 잠실 주경기장</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs px-2 py-1 bg-gray-100 rounded-full">콘서트</span>
+                            <div class="flex items-center">
+                                <div class="w-5 h-5 flex items-center justify-center mr-1 text-blue-500">
+                                    <i class="ri-melody-fill"></i>
+                                </div>
+                                <span class="text-xs text-gray-500">멜론티켓</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 티켓 카드 2 -->
+                <div class="ticket-card bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 transition-all duration-300">
+                    <div class="relative">
+                        <img src="https://readdy.ai/api/search-image?query=musical%20poster%20for%20The%20Phantom%20of%20the%20Opera%2C%20professional%20photography%2C%20high%20quality%2C%20dramatic%20dark%20colors%2C%20gothic%20atmosphere%2C%20elegant%20design%2C%20clear%20title%20text&width=600&height=400&seq=2&orientation=landscape" alt="오페라의 유령" class="w-full h-48 object-cover object-top">
+                        <div class="absolute top-3 right-3 bg-white rounded-full p-1 shadow-md">
+                            <div class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-primary cursor-pointer">
+                                <i class="ri-heart-line"></i>
+                            </div>
+                        </div>
+                        <div class="absolute bottom-3 left-3 bg-primary text-white text-xs px-2 py-1 rounded-full">D-5</div>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex items-center mb-2">
+                            <div class="w-5 h-5 flex items-center justify-center mr-1">
+                                <i class="ri-ticket-line text-primary"></i>
+                            </div>
+                            <span class="text-xs text-gray-500">2025.06.27 오전 11:00 오픈</span>
+                        </div>
+                        <h3 class="font-bold text-gray-800 mb-1">뮤지컬 '오페라의 유령' 내한공연</h3>
+                        <p class="text-sm text-gray-600 mb-3">2025.09.05 - 2025.11.30 | 블루스퀘어</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs px-2 py-1 bg-gray-100 rounded-full">뮤지컬</span>
+                            <div class="flex items-center">
+                                <div class="w-5 h-5 flex items-center justify-center mr-1 text-green-500">
+                                    <i class="ri-yes24-fill"></i>
+                                </div>
+                                <span class="text-xs text-gray-500">YES24티켓</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 티켓 카드 3 -->
+                <div class="ticket-card bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 transition-all duration-300">
+                    <div class="relative">
+                        <img src="https://readdy.ai/api/search-image?query=concert%20poster%20for%20IU%20Love%20Poem%20Tour%2C%20professional%20photography%2C%20high%20quality%2C%20soft%20pastel%20colors%2C%20dreamy%20atmosphere%2C%20elegant%20minimalist%20design%2C%20clear%20text&width=600&height=400&seq=3&orientation=landscape" alt="아이유 콘서트" class="w-full h-48 object-cover object-top">
+                        <div class="absolute top-3 right-3 bg-white rounded-full p-1 shadow-md">
+                            <div class="w-6 h-6 flex items-center justify-center text-primary cursor-pointer">
+                                <i class="ri-heart-fill"></i>
+                            </div>
+                        </div>
+                        <div class="absolute bottom-3 left-3 bg-primary text-white text-xs px-2 py-1 rounded-full">오늘</div>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex items-center mb-2">
+                            <div class="w-5 h-5 flex items-center justify-center mr-1">
+                                <i class="ri-ticket-line text-primary"></i>
+                            </div>
+                            <span class="text-xs text-gray-500">2025.06.22 오후 6:00 오픈</span>
+                        </div>
+                        <h3 class="font-bold text-gray-800 mb-1">아이유 콘서트 'The Golden Hour'</h3>
+                        <p class="text-sm text-gray-600 mb-3">2025.07.20 - 2025.07.21 | 올림픽공원 체조경기장</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs px-2 py-1 bg-gray-100 rounded-full">콘서트</span>
+                            <div class="flex items-center">
+                                <div class="w-5 h-5 flex items-center justify-center mr-1 text-orange-500">
+                                    <i class="ri-link-fill"></i>
+                                </div>
+                                <span class="text-xs text-gray-500">티켓링크</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 티켓 카드 4 -->
+                <div class="ticket-card bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 transition-all duration-300">
+                    <div class="relative">
+                        <img src="https://readdy.ai/api/search-image?query=classical%20concert%20poster%20for%20Berlin%20Philharmonic%20Orchestra%2C%20professional%20photography%2C%20high%20quality%2C%20elegant%20design%2C%20sophisticated%20color%20palette%2C%20formal%20atmosphere%2C%20clear%20text&width=600&height=400&seq=4&orientation=landscape" alt="베를린 필하모닉" class="w-full h-48 object-cover object-top">
+                        <div class="absolute top-3 right-3 bg-white rounded-full p-1 shadow-md">
+                            <div class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-primary cursor-pointer">
+                                <i class="ri-heart-line"></i>
+                            </div>
+                        </div>
+                        <div class="absolute bottom-3 left-3 bg-primary text-white text-xs px-2 py-1 rounded-full">D-7</div>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex items-center mb-2">
+                            <div class="w-5 h-5 flex items-center justify-center mr-1">
+                                <i class="ri-ticket-line text-primary"></i>
+                            </div>
+                            <span class="text-xs text-gray-500">2025.06.29 오전 10:00 오픈</span>
+                        </div>
+                        <h3 class="font-bold text-gray-800 mb-1">베를린 필하모닉 오케스트라 내한공연</h3>
+                        <p class="text-sm text-gray-600 mb-3">2025.08.30 | 예술의전당 콘서트홀</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs px-2 py-1 bg-gray-100 rounded-full">클래식</span>
+                            <div class="flex items-center">
+                                <div class="w-5 h-5 flex items-center justify-center mr-1 text-purple-500">
+                                    <i class="ri-interpark-fill"></i>
+                                </div>
+                                <span class="text-xs text-gray-500">인터파크티켓</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 티켓 카드 5 -->
+                <div class="ticket-card bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 transition-all duration-300">
+                    <div class="relative">
+                        <img src="https://readdy.ai/api/search-image?query=theater%20play%20poster%20for%20Hamlet%2C%20professional%20photography%2C%20high%20quality%2C%20dramatic%20dark%20colors%2C%20artistic%20design%2C%20theatrical%20atmosphere%2C%20clear%20title%20text&width=600&height=400&seq=5&orientation=landscape" alt="햄릿" class="w-full h-48 object-cover object-top">
+                        <div class="absolute top-3 right-3 bg-white rounded-full p-1 shadow-md">
+                            <div class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-primary cursor-pointer">
+                                <i class="ri-heart-line"></i>
+                            </div>
+                        </div>
+                        <div class="absolute bottom-3 left-3 bg-primary text-white text-xs px-2 py-1 rounded-full">D-10</div>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex items-center mb-2">
+                            <div class="w-5 h-5 flex items-center justify-center mr-1">
+                                <i class="ri-ticket-line text-primary"></i>
+                            </div>
+                            <span class="text-xs text-gray-500">2025.07.02 오후 2:00 오픈</span>
+                        </div>
+                        <h3 class="font-bold text-gray-800 mb-1">연극 '햄릿' - 황정민 주연</h3>
+                        <p class="text-sm text-gray-600 mb-3">2025.08.10 - 2025.10.05 | 명동예술극장</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs px-2 py-1 bg-gray-100 rounded-full">연극</span>
+                            <div class="flex items-center">
+                                <div class="w-5 h-5 flex items-center justify-center mr-1 text-blue-500">
+                                    <i class="ri-melody-fill"></i>
+                                </div>
+                                <span class="text-xs text-gray-500">멜론티켓</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 티켓 카드 6 -->
+                <div class="ticket-card bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 transition-all duration-300">
+                    <div class="relative">
+                        <img src="https://readdy.ai/api/search-image?query=art%20exhibition%20poster%20for%20Van%20Gogh%20Alive%2C%20professional%20photography%2C%20high%20quality%2C%20vibrant%20colors%2C%20artistic%20design%2C%20immersive%20atmosphere%2C%20clear%20title%20text&width=600&height=400&seq=6&orientation=landscape" alt="반 고흐 전시" class="w-full h-48 object-cover object-top">
+                        <div class="absolute top-3 right-3 bg-white rounded-full p-1 shadow-md">
+                            <div class="w-6 h-6 flex items-center justify-center text-primary cursor-pointer">
+                                <i class="ri-heart-fill"></i>
+                            </div>
+                        </div>
+                        <div class="absolute bottom-3 left-3 bg-primary text-white text-xs px-2 py-1 rounded-full">D-3</div>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex items-center mb-2">
+                            <div class="w-5 h-5 flex items-center justify-center mr-1">
+                                <i class="ri-ticket-line text-primary"></i>
+                            </div>
+                            <span class="text-xs text-gray-500">2025.06.25 오전 10:00 오픈</span>
+                        </div>
+                        <h3 class="font-bold text-gray-800 mb-1">반 고흐 얼라이브 - 몰입형 미디어 전시</h3>
+                        <p class="text-sm text-gray-600 mb-3">2025.07.15 - 2025.12.31 | 서울 코엑스</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs px-2 py-1 bg-gray-100 rounded-full">전시</span>
+                            <div class="flex items-center">
+                                <div class="w-5 h-5 flex items-center justify-center mr-1 text-green-500">
+                                    <i class="ri-yes24-fill"></i>
+                                </div>
+                                <span class="text-xs text-gray-500">YES24티켓</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 더 보기 버튼 -->
+            <div class="mt-8 text-center">
+                <button class="px-6 py-2 border border-gray-200 rounded-button text-gray-600 hover:bg-gray-50 whitespace-nowrap">더 많은 티켓 오픈 보기</button>
+            </div>
+        </div>
+        
+        <!-- 사이드바 - 알림 설정 -->
+        <div class="hidden lg:block w-80 bg-white rounded-lg shadow-sm border border-gray-100 h-fit sticky top-24">
+            <div class="p-5 border-b border-gray-100">
+                <h3 class="font-bold text-lg">알림 설정</h3>
+                <p class="text-sm text-gray-500 mt-1">티켓 오픈 알림을 받아보세요</p>
+            </div>
+            
+            <div class="p-5">
+                <div class="mb-5">
+                    <h4 class="font-medium text-sm mb-3">디스코드 연동</h4>
+                    <button class="w-full bg-indigo-600 text-white rounded-button py-2 flex items-center justify-center whitespace-nowrap">
+                        <div class="w-5 h-5 flex items-center justify-center mr-2">
+                            <i class="ri-discord-fill"></i>
+                        </div>
+                        디스코드 계정 연결하기
+                    </button>
+                </div>
+                
+                <div class="mb-5">
+                    <h4 class="font-medium text-sm mb-3">알림 받을 시간</h4>
+                    <div class="space-y-2">
+                        <label class="flex items-center">
+                            <div class="relative inline-block w-10 h-5 mr-3">
+                                <input type="checkbox" class="opacity-0 w-0 h-0" checked>
+                                <span class="slider absolute cursor-pointer inset-0 bg-primary rounded-full"></span>
+                            </div>
+                            <span class="text-sm">티켓 오픈 10분 전</span>
+                        </label>
+                        <label class="flex items-center">
+                            <div class="relative inline-block w-10 h-5 mr-3">
+                                <input type="checkbox" class="opacity-0 w-0 h-0" checked>
+                                <span class="slider absolute cursor-pointer inset-0 bg-gray-300 rounded-full"></span>
+                            </div>
+                            <span class="text-sm">티켓 오픈 1시간 전</span>
+                        </label>
+                        <label class="flex items-center">
+                            <div class="relative inline-block w-10 h-5 mr-3">
+                                <input type="checkbox" class="opacity-0 w-0 h-0">
+                                <span class="slider absolute cursor-pointer inset-0 bg-gray-300 rounded-full"></span>
+                            </div>
+                            <span class="text-sm">티켓 오픈 1일 전</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="font-medium text-sm">관심 공연 (2)</h4>
+                        <button class="text-xs text-primary">전체보기</button>
+                    </div>
+                    
+                    <div class="space-y-3 max-h-60 overflow-y-auto custom-scrollbar">
+                        <div class="flex items-center p-2 bg-gray-50 rounded-lg">
+                            <img src="https://readdy.ai/api/search-image?query=concert%20poster%20for%20IU%20Love%20Poem%20Tour%2C%20professional%20photography%2C%20high%20quality%2C%20soft%20pastel%20colors%2C%20dreamy%20atmosphere%2C%20elegant%20minimalist%20design%2C%20clear%20text&width=100&height=100&seq=7&orientation=squarish" alt="아이유 콘서트" class="w-12 h-12 rounded object-cover object-top">
+                            <div class="ml-3 flex-1">
+                                <h5 class="text-sm font-medium">아이유 콘서트 'The Golden Hour'</h5>
+                                <p class="text-xs text-gray-500">2025.06.22 오후 6:00 오픈</p>
+                            </div>
+                            <button class="text-primary">
+                                <div class="w-5 h-5 flex items-center justify-center">
+                                    <i class="ri-heart-fill"></i>
+                                </div>
+                            </button>
+                        </div>
+                        
+                        <div class="flex items-center p-2 bg-gray-50 rounded-lg">
+                            <img src="https://readdy.ai/api/search-image?query=art%20exhibition%20poster%20for%20Van%20Gogh%20Alive%2C%20professional%20photography%2C%20high%20quality%2C%20vibrant%20colors%2C%20artistic%20design%2C%20immersive%20atmosphere%2C%20clear%20title%20text&width=100&height=100&seq=8&orientation=squarish" alt="반 고흐 전시" class="w-12 h-12 rounded object-cover object-top">
+                            <div class="ml-3 flex-1">
+                                <h5 class="text-sm font-medium">반 고흐 얼라이브 - 몰입형 미디어 전시</h5>
+                                <p class="text-xs text-gray-500">2025.06.25 오전 10:00 오픈</p>
+                            </div>
+                            <button class="text-primary">
+                                <div class="w-5 h-5 flex items-center justify-center">
+                                    <i class="ri-heart-fill"></i>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 모바일 하단 네비게이션 -->
+    <div class="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 flex justify-around z-50">
+        <button class="flex flex-col items-center text-primary">
+            <div class="w-6 h-6 flex items-center justify-center">
+                <i class="ri-home-5-fill"></i>
+            </div>
+            <span class="text-xs mt-1">홈</span>
+        </button>
+        <button class="flex flex-col items-center text-gray-500">
+            <div class="w-6 h-6 flex items-center justify-center">
+                <i class="ri-search-line"></i>
+            </div>
+            <span class="text-xs mt-1">검색</span>
+        </button>
+        <button class="flex flex-col items-center text-gray-500">
+            <div class="w-6 h-6 flex items-center justify-center">
+                <i class="ri-notification-line"></i>
+            </div>
+            <span class="text-xs mt-1">알림</span>
+        </button>
+        <button class="flex flex-col items-center text-gray-500">
+            <div class="w-6 h-6 flex items-center justify-center">
+                <i class="ri-user-line"></i>
+            </div>
+            <span class="text-xs mt-1">내정보</span>
+        </button>
+    </div>
+
+    <!-- 스크립트 -->
+    <script id="dropdownToggle">
+        document.addEventListener('DOMContentLoaded', function() {
+            // 장르 드롭다운 토글
+            const genreDropdownButton = document.getElementById('genreDropdownButton');
+            const genreDropdown = document.getElementById('genreDropdown');
+            
+            if (genreDropdownButton && genreDropdown) {
+                genreDropdownButton.addEventListener('click', function() {
+                    genreDropdown.classList.toggle('hidden');
+                });
+            }
+            
+            // 날짜 드롭다운 토글
+            const dateDropdownButton = document.getElementById('dateDropdownButton');
+            const dateDropdown = document.getElementById('dateDropdown');
+            
+            if (dateDropdownButton && dateDropdown) {
+                dateDropdownButton.addEventListener('click', function() {
+                    dateDropdown.classList.toggle('hidden');
+                });
+            }
+            
+            // 드롭다운 외부 클릭 시 닫기
+            document.addEventListener('click', function(event) {
+                if (genreDropdownButton && genreDropdown && !genreDropdownButton.contains(event.target) && !genreDropdown.contains(event.target)) {
+                    genreDropdown.classList.add('hidden');
+                }
+                
+                if (dateDropdownButton && dateDropdown && !dateDropdownButton.contains(event.target) && !dateDropdown.contains(event.target)) {
+                    dateDropdown.classList.add('hidden');
+                }
+            });
+        });
+    </script>
+
+    <script id="switchToggle">
+        document.addEventListener('DOMContentLoaded', function() {
+            // 스위치 토글 기능
+            const switchInputs = document.querySelectorAll('.slider');
+            
+            switchInputs.forEach(function(slider) {
+                const input = slider.previousElementSibling;
+                
+                slider.addEventListener('click', function() {
+                    input.checked = !input.checked;
+                    
+                    if (input.checked) {
+                        slider.classList.remove('bg-gray-300');
+                        slider.classList.add('bg-primary');
+                    } else {
+                        slider.classList.remove('bg-primary');
+                        slider.classList.add('bg-gray-300');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

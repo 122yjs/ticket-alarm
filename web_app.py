@@ -62,84 +62,7 @@ ADMIN_USERS = {"admin", "manager"}  # 관리자 권한을 가진 사용자 목�
 # 자동 갱신 설정
 AUTO_REFRESH_INTERVAL = 3600  # 1시간 (초 단위)
 
-def get_ticket_stats(tickets: List[Dict]) -> Dict[str, Any]:
-    """
-    티켓 통계 정보를 계산합니다.
-    
-    Args:
-        tickets: 티켓 목록
-        
-    Returns:
-        통계 정보 딕셔너리
-    """
-    if not tickets:
-        return {
-            "total_count": 0,
-            "platform_counts": {},
-            "genre_counts": {},
-            "today_count": 0,
-            "tomorrow_count": 0,
-            "this_week_count": 0
-        }
-    
-    # 플랫폼별 카운트
-    platform_counts = {}
-    for ticket in tickets:
-        platform = ticket.get('source', '알 수 없음')
-        platform_counts[platform] = platform_counts.get(platform, 0) + 1
-    
-    # 장르별 카운트 (제목에서 추출)
-    genre_counts = {
-        "콘서트": 0,
-        "뮤지컬": 0,
-        "연극": 0,
-        "클래식": 0,
-        "기타": 0
-    }
-    
-    today = datetime.now().date()
-    tomorrow = today + timedelta(days=1)
-    week_end = today + timedelta(days=7)
-    
-    today_count = 0
-    tomorrow_count = 0
-    this_week_count = 0
-    
-    for ticket in tickets:
-        title = ticket.get('title', '').lower()
-        
-        # 장르 분류
-        if any(keyword in title for keyword in ['콘서트', 'concert', '공연']):
-            genre_counts["콘서트"] += 1
-        elif any(keyword in title for keyword in ['뮤지컬', 'musical']):
-            genre_counts["뮤지컬"] += 1
-        elif any(keyword in title for keyword in ['연극', 'play']):
-            genre_counts["연극"] += 1
-        elif any(keyword in title for keyword in ['클래식', 'classic', '오케스트라']):
-            genre_counts["클래식"] += 1
-        else:
-            genre_counts["기타"] += 1
-        
-        # 날짜별 카운트
-        open_date_str = ticket.get('open_date', '')
-        if open_date_str and open_date_str != '미정':
-            parsed_date = _parse_ticket_date_improved(open_date_str)
-            if parsed_date:
-                if parsed_date == today:
-                    today_count += 1
-                elif parsed_date == tomorrow:
-                    tomorrow_count += 1
-                elif today <= parsed_date <= week_end:
-                    this_week_count += 1
-    
-    return {
-        "total_count": len(tickets),
-        "platform_counts": platform_counts,
-        "genre_counts": genre_counts,
-        "today_count": today_count,
-        "tomorrow_count": tomorrow_count,
-        "this_week_count": this_week_count
-    }
+
 
 def refresh_ticket_data():
     """
@@ -148,11 +71,45 @@ def refresh_ticket_data():
     global ticket_cache, last_update_time
     
     try:
-        ticket_cache = load_tickets()
+        # 데이터 관리 모듈을 사용하여 티켓 로드
+        all_tickets = load_tickets()
+        
+        # 데이터 가공 (웹 표시용)
+        processed_tickets = []
+        for t in all_tickets:
+            # D-day 계산
+            d_day = ""
+            open_date_str = t.get('open_date', '')
+            if open_date_str and open_date_str != '미정':
+                try:
+                    # 날짜 형식 파싱 (예: '2024.07.25 14:00')
+                    open_datetime = datetime.strptime(open_date_str.split(' ')[0], '%Y.%m.%d')
+                    delta = open_datetime.date() - datetime.now().date()
+                    if delta.days == 0:
+                        d_day = "D-DAY"
+                    elif delta.days > 0:
+                        d_day = f"D-{delta.days}"
+                except ValueError:
+                    pass # 날짜 형식 안맞으면 무시
+
+            processed_tickets.append({
+                "image_url": t.get('image', 'https://via.placeholder.com/300x400.png?text=No+Image'), # 기본 이미지
+                "title": t.get('title', '제목 없음'),
+                "open_date_str": t.get('open_date', '미정'),
+                "date": t.get('date', '날짜 정보 없음'),
+                "place": t.get('place', '장소 정보 없음'),
+                "genre": t.get('genre', '장르 미분류'),
+                "platform": t.get('source', '플랫폼 정보 없음'),
+                "d_day": d_day,
+                "link": t.get('link', '#')
+            })
+        
+        ticket_cache = processed_tickets
         last_update_time = datetime.now()
-        logger.info(f"티켓 데이터 새로고침 완료: {len(ticket_cache)}건")
+        logger.info(f"티켓 데이터 새로고침 및 가공 완료: {len(ticket_cache)}건")
+        
     except Exception as e:
-        logger.error(f"티켓 데이터 로드 중 오류: {e}")
+        logger.error(f"티켓 데이터 로드 및 가공 중 오류: {e}", exc_info=True)
         ticket_cache = []
 
 @app.on_event("startup")
@@ -164,24 +121,19 @@ async def startup_event():
     refresh_ticket_data()
 
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request, user: Optional[str] = Query(None, description="사용자 ID")):
+async def home(request: Request):
     """
     메인 페이지를 렌더링합니다.
     """
-    stats = get_ticket_stats(ticket_cache)
-    
-    # 사용자 권한 확인
-    is_admin = user in ADMIN_USERS if user else False
+    # 간단한 통계 정보 생성
+    stats = {
+        "total_count": len(ticket_cache)
+    }
     
     return templates.TemplateResponse("index.html", {
         "request": request,
         "tickets": ticket_cache[:50],  # 최대 50개만 표시
-        "stats": stats,
-        "last_update": last_update_time.strftime("%Y. %m. %d. %p %I:%M") if last_update_time else "업데이트 없음",
-        "last_update_iso": last_update_time.isoformat() if last_update_time else None,
-        "total_tickets": len(ticket_cache),
-        "is_admin": is_admin,
-        "auto_refresh_interval": AUTO_REFRESH_INTERVAL * 1000  # JavaScript용 밀리초 단위
+        "stats": stats
     })
 
 @app.get("/api/tickets")

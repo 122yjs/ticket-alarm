@@ -3,208 +3,265 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>티켓 오픈 모니터 - 실시간 공연 티켓 알림</title>
-    
-    <!-- CSS 스타일 -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <title>티켓 오픈 알리미</title>
+    <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+    <script>tailwind.config={theme:{extend:{colors:{primary:'#4f46e5',secondary:'#6366f1'},borderRadius:{'none':'0px','sm':'4px',DEFAULT:'8px','md':'12px','lg':'16px','xl':'20px','2xl':'24px','3xl':'32px','full':'9999px','button':'8px'}}}}</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link href="/static/style.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.min.css">
+    <style>
+        :where([class^="ri-"])::before { content: "\f3c2"; }
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        .ticket-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+    </style>
 </head>
-<body>
+<body class="bg-gray-50 min-h-screen">
     <!-- 헤더 -->
-    <header class="header">
-        <div class="container">
-            <div class="header-content">
-                <div class="logo">
-                    <i class="fas fa-ticket-alt"></i>
-                    <h1>티켓 오픈 모니터</h1>
-                </div>
-                <div class="header-actions">
-                    {% if is_admin %}
-                    <button id="refreshBtn" class="btn btn-primary">
-                        <i class="fas fa-sync-alt"></i>
-                        수동 새로고침
-                    </button>
-                    {% endif %}
-                    <div class="last-update">
-                        <i class="fas fa-clock"></i>
-                        <span>마지막 업데이트: </span>
-                        <span id="lastUpdate">{{ last_update }}</span>
+    <header class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center">
+                <h1 class="text-2xl font-['Pacifico'] text-primary mr-8">logo</h1>
+            </div>
+            
+            <div class="relative flex-1 max-w-xl mx-4">
+                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                    <div class="w-5 h-5 flex items-center justify-center text-gray-400">
+                        <i class="ri-search-line"></i>
                     </div>
-                    <div class="auto-refresh-info">
-                        <i class="fas fa-sync"></i>
-                        <span>자동 갱신: 1시간마다</span>
+                </div>
+                <input type="text" class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-button focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" placeholder="공연명 또는 아티스트 검색">
+            </div>
+            
+            <div class="flex items-center">
+                <button class="text-gray-600 hover:text-primary px-3 py-2 text-sm font-medium">로그인</button>
+                <button class="ml-2 bg-primary text-white px-4 py-2 rounded-button text-sm font-medium whitespace-nowrap hover:bg-primary/90 transition-colors">회원가입</button>
+            </div>
+        </div>
+        
+        <!-- 필터 영역 -->
+        <div class="container mx-auto px-4 py-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-2">
+                <span class="text-sm text-gray-500">정렬:</span>
+                <div class="inline-flex p-1 bg-gray-100 rounded-full">
+                    <button class="px-3 py-1 text-sm rounded-full bg-white shadow-sm text-primary font-medium whitespace-nowrap">시간순</button>
+                    <button class="px-3 py-1 text-sm rounded-full text-gray-600 font-medium whitespace-nowrap">공연순</button>
+                    <button class="px-3 py-1 text-sm rounded-full text-gray-600 font-medium whitespace-nowrap">아티스트순</button>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <div class="relative">
+                    <button id="genreDropdownButton" class="flex items-center text-sm text-gray-700 border border-gray-200 rounded-button px-3 py-2 whitespace-nowrap">
+                        <span>모든 장르</span>
+                        <div class="w-4 h-4 flex items-center justify-center ml-2">
+                            <i class="ri-arrow-down-s-line"></i>
+                        </div>
+                    </button>
+                    <div id="genreDropdown" class="hidden absolute z-10 mt-1 bg-white rounded-md shadow-lg w-48 py-1 border border-gray-100">
+                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">모든 장르</a>
+                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">콘서트</a>
+                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">뮤지컬</a>
+                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">연극</a>
+                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">클래식</a>
+                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">전시</a>
+                    </div>
+                </div>
+                
+                <div class="relative">
+                    <button id="dateDropdownButton" class="flex items-center text-sm text-gray-700 border border-gray-200 rounded-button px-3 py-2 whitespace-nowrap">
+                        <span>날짜 선택</span>
+                        <div class="w-4 h-4 flex items-center justify-center ml-2">
+                            <i class="ri-calendar-line"></i>
+                        </div>
+                    </button>
+                    <div id="dateDropdown" class="hidden absolute z-10 mt-1 bg-white rounded-md shadow-lg p-3 border border-gray-100">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">시작일</label>
+                                <input type="date" class="w-full text-sm border border-gray-200 rounded-button px-2 py-1">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">종료일</label>
+                                <input type="date" class="w-full text-sm border border-gray-200 rounded-button px-2 py-1">
+                            </div>
+                        </div>
+                        <div class="mt-3 flex justify-end">
+                            <button class="bg-primary text-white px-3 py-1 rounded-button text-sm whitespace-nowrap">적용</button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </header>
 
-    <!-- 메인 컨텐츠 -->
-    <main class="main">
-        <div class="container">
-            <!-- 통계 대시보드 -->
-            <section class="stats-section">
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-ticket-alt"></i>
+    <main class="container mx-auto px-4 py-6 flex">
+        <!-- 메인 콘텐츠 영역 -->
+        <div class="flex-1 mr-6">
+            <h2 class="text-xl font-bold mb-6">다가오는 티켓 오픈 <span class="text-primary">{{ stats.total_count }}</span></h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {% for ticket in tickets %}
+                <!-- 티켓 카드 -->
+                <div class="ticket-card bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 transition-all duration-300">
+                    <div class="relative">
+                        <img src="{{ ticket.image_url }}" alt="{{ ticket.title }}" class="w-full h-48 object-cover object-top">
+                        <div class="absolute top-3 right-3 bg-white rounded-full p-1 shadow-md">
+                            <div class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-primary cursor-pointer">
+                                <i class="ri-heart-line"></i>
+                            </div>
                         </div>
-                        <div class="stat-content">
-                            <h3>전체 티켓</h3>
-                            <p class="stat-number">{{ stats.total_count }}</p>
-                        </div>
+                        {% if ticket.d_day is not none %}
+                        <div class="absolute bottom-3 left-3 bg-primary text-white text-xs px-2 py-1 rounded-full">{{ ticket.d_day }}</div>
+                        {% endif %}
                     </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-icon today">
-                            <i class="fas fa-calendar-day"></i>
+                    <div class="p-4">
+                        <div class="flex items-center mb-2">
+                            <div class="w-5 h-5 flex items-center justify-center mr-1">
+                                <i class="ri-ticket-line text-primary"></i>
+                            </div>
+                            <span class="text-xs text-gray-500">{{ ticket.open_date_str }} 오픈</span>
                         </div>
-                        <div class="stat-content">
-                            <h3>오늘 오픈</h3>
-                            <p class="stat-number">{{ stats.today_count }}</p>
-                        </div>
-                    </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-icon tomorrow">
-                            <i class="fas fa-calendar-plus"></i>
-                        </div>
-                        <div class="stat-content">
-                            <h3>내일 오픈</h3>
-                            <p class="stat-number">{{ stats.tomorrow_count }}</p>
-                        </div>
-                    </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-icon week">
-                            <i class="fas fa-calendar-week"></i>
-                        </div>
-                        <div class="stat-content">
-                            <h3>이번 주</h3>
-                            <p class="stat-number">{{ stats.this_week_count }}</p>
+                        <h3 class="font-bold text-gray-800 mb-1">{{ ticket.title }}</h3>
+                        <p class="text-sm text-gray-600 mb-3">{{ ticket.date }} | {{ ticket.place }}</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs px-2 py-1 bg-gray-100 rounded-full">{{ ticket.genre }}</span>
+                            <div class="flex items-center">
+                                <div class="w-5 h-5 flex items-center justify-center mr-1 text-blue-500">
+                                    <i class="ri-melody-fill"></i>
+                                </div>
+                                <span class="text-xs text-gray-500">{{ ticket.platform }}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </section>
+                {% endfor %}
+            </div>
 
-            <!-- 필터 섹션 -->
-            <section class="filter-section">
-                <div class="filter-container">
-                    <div class="filter-group">
-                        <label for="platformFilter">플랫폼</label>
-                        <select id="platformFilter" class="filter-select">
-                            <option value="전체">전체 플랫폼</option>
-                            {% for platform, count in stats.platform_counts.items() %}
-                            <option value="{{ platform }}">{{ platform }} ({{ count }})</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label for="genreFilter">장르</label>
-                        <select id="genreFilter" class="filter-select">
-                            <option value="전체">전체 장르</option>
-                            {% for genre, count in stats.genre_counts.items() %}
-                            {% if count > 0 %}
-                            <option value="{{ genre }}">{{ genre }} ({{ count }})</option>
-                            {% endif %}
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label for="dateFilter">날짜</label>
-                        <select id="dateFilter" class="filter-select">
-                            <option value="전체">전체 기간</option>
-                            <option value="today">오늘</option>
-                            <option value="tomorrow">내일</option>
-                            <option value="week">이번 주</option>
-                        </select>
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label for="sortFilter">정렬</label>
-                        <select id="sortFilter" class="filter-select">
-                            <option value="open_date_desc">티켓 오픈일 최신순</option>
-                            <option value="open_date_asc">티켓 오픈일 임박순</option>
-                            <option value="performance_date_asc">공연일 임박순</option>
-                            <option value="title_asc">가나다순</option>
-                            <option value="popularity_desc">인기순</option>
-                        </select>
-                    </div>
-                    
-                    <div class="filter-group search-group">
-                        <label for="searchInput">검색</label>
-                        <div class="search-container">
-                            <input type="text" id="searchInput" placeholder="공연명, 장소 검색..." class="search-input">
-                            <i class="fas fa-search search-icon"></i>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 티켓 목록 -->
-            <section class="tickets-section">
-                <div class="section-header">
-                    <h2>티켓 목록</h2>
-                    <div class="view-options">
-                        <button class="view-btn active" data-view="grid">
-                            <i class="fas fa-th-large"></i>
-                        </button>
-                        <button class="view-btn" data-view="list">
-                            <i class="fas fa-list"></i>
-                        </button>
-                    </div>
-                </div>
-                
-                <div id="ticketsContainer" class="tickets-grid">
-                    <!-- 티켓 카드들이 여기에 동적으로 로드됩니다 -->
-                </div>
-                
-                <div id="loadingSpinner" class="loading-spinner" style="display: none;">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <p>티켓 정보를 불러오는 중...</p>
-                </div>
-                
-                <div id="noResults" class="no-results" style="display: none;">
-                    <i class="fas fa-search"></i>
-                    <h3>검색 결과가 없습니다</h3>
-                    <p>다른 검색어나 필터를 시도해보세요.</p>
-                </div>
-            </section>
-        </div>
-    </main>
-
-    <!-- 푸터 -->
-    <footer class="footer">
-        <div class="container">
-            <div class="footer-content">
-                <div class="footer-info">
-                    <p>&copy; 2024 티켓 오픈 모니터. 실시간 공연 티켓 알림 시스템</p>
-                    <p>마지막 업데이트: <span id="footerLastUpdate">{{ last_update }}</span></p>
-                    {% if is_admin %}
-                    <p class="admin-info">관리자 모드 - 수동 새로고침 권한 있음</p>
-                    {% endif %}
-                </div>
-                <div class="footer-links">
-                    <a href="#" class="footer-link">도움말</a>
-                    <a href="#" class="footer-link">문의하기</a>
-                    <a href="#" class="footer-link">GitHub</a>
-                </div>
+            <!-- 페이지네이션 -->
+            <div class="mt-8 flex justify-center">
+                <nav class="inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                        <span class="sr-only">Previous</span>
+                        <i class="ri-arrow-left-s-line"></i>
+                    </a>
+                    <a href="#" aria-current="page" class="relative z-10 inline-flex items-center px-4 py-2 border border-primary bg-indigo-50 text-sm font-medium text-primary">1</a>
+                    <a href="#" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">2</a>
+                    <a href="#" class="relative hidden md:inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">3</a>
+                    <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>
+                    <a href="#" class="relative hidden md:inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">8</a>
+                    <a href="#" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">9</a>
+                    <a href="#" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">10</a>
+                    <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                        <span class="sr-only">Next</span>
+                        <i class="ri-arrow-right-s-line"></i>
+                    </a>
+                </nav>
             </div>
         </div>
-    </footer>
 
-    <!-- JavaScript -->
+        <!-- 사이드바 -->
+        <aside class="w-72 hidden lg:block">
+            <div class="sticky top-24">
+                <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6">
+                    <h3 class="font-bold text-sm mb-4">알림 설정</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-xs text-gray-600">키워드 알림</label>
+                            <input type="text" placeholder="'아이유', '뮤지컬' 등" class="w-full mt-1 text-sm border border-gray-200 rounded-button px-2 py-1.5">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-600">알림 주기</label>
+                            <select class="w-full mt-1 text-sm border border-gray-200 rounded-button px-2 py-1.5">
+                                <option>실시간</option>
+                                <option>1시간마다</option>
+                                <option>하루에 한 번</option>
+                            </select>
+                        </div>
+                        <button class="w-full bg-primary text-white py-2 rounded-button text-sm font-medium">알림 저장</button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-sm border border-gray-100">
+                    <h3 class="font-bold text-sm p-4 border-b border-gray-100">인기 검색어</h3>
+                    <ul class="divide-y divide-gray-100">
+                        <li class="p-3 flex items-center justify-between text-sm hover:bg-gray-50">
+                            <span><span class="font-bold w-6 inline-block">1.</span> 아이유</span>
+                            <span class="text-xs text-gray-400">+120%</span>
+                        </li>
+                        <li class="p-3 flex items-center justify-between text-sm hover:bg-gray-50">
+                            <span><span class="font-bold w-6 inline-block">2.</span> 오페라의 유령</span>
+                            <span class="text-xs text-gray-400">+95%</span>
+                        </li>
+                        <li class="p-3 flex items-center justify-between text-sm hover:bg-gray-50">
+                            <span><span class="font-bold w-6 inline-block">3.</span> BTS</span>
+                            <span class="text-xs text-gray-400">+88%</span>
+                        </li>
+                        <li class="p-3 flex items-center justify-between text-sm hover:bg-gray-50">
+                            <span><span class="font-bold w-6 inline-block">4.</span> 싸이 흠뻑쇼</span>
+                            <span class="text-xs text-gray-400">-10%</span>
+                        </li>
+                        <li class="p-3 flex items-center justify-between text-sm hover:bg-gray-50">
+                            <span><span class="font-bold w-6 inline-block">5.</span> 성시경</span>
+                            <span class="text-xs text-gray-400">+50%</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+    </main>
+
     <script>
-        // 서버에서 전달받은 설정값들
-        window.APP_CONFIG = {
-            isAdmin: {{ 'true' if is_admin else 'false' }},
-            autoRefreshInterval: {{ auto_refresh_interval }},
-            lastUpdateIso: {{ ('"' + last_update_iso + '"') if last_update_iso else 'null' }}
-        };
+        document.addEventListener('DOMContentLoaded', function () {
+            const genreDropdownButton = document.getElementById('genreDropdownButton');
+            const genreDropdown = document.getElementById('genreDropdown');
+            const dateDropdownButton = document.getElementById('dateDropdownButton');
+            const dateDropdown = document.getElementById('dateDropdown');
+
+            function setupDropdown(button, dropdown) {
+                button.addEventListener('click', function (event) {
+                    event.stopPropagation();
+                    dropdown.classList.toggle('hidden');
+                });
+            }
+
+            setupDropdown(genreDropdownButton, genreDropdown);
+            setupDropdown(dateDropdownButton, dateDropdown);
+
+            document.addEventListener('click', function (event) {
+                if (!genreDropdown.contains(event.target)) {
+                    genreDropdown.classList.add('hidden');
+                }
+                if (!dateDropdown.contains(event.target)) {
+                    dateDropdown.classList.add('hidden');
+                }
+            });
+        });
     </script>
-    <script src="/static/script.js"></script>
 </body>
 </html>
