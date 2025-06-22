@@ -1,6 +1,9 @@
 {
-  "DISCORD_WEBHOOK_URL": "여기에_디스코드_웹훅_URL을_입력하세요",
-  "KEYWORDS": ["뮤지컬", "콘서트", "임영웅", "아이유"],
+  "DISCORD_WEBHOOK_URL": "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL",
+  "KEYWORDS": ["아이유", "BTS", "블랙핑크"],
+  "PRIORITY_KEYWORDS": ["아이유", "방탄소년단"],
   "interval": 3600,
+  "notification_delay": 1.0,
+  "max_notifications_per_cycle": 10,
   "sources": ["interpark", "yes24", "melon", "ticketlink"]
 }

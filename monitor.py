@@ -72,18 +72,54 @@ def save_all_tickets(tickets: List[Dict[str, Any]], filename: str = "all_tickets
 
 
 def filter_tickets_by_keyword(tickets: List[Dict[str, Any]], keywords: List[str]) -> List[Dict[str, Any]]:
-    """티켓 목록에서 키워드가 포함된 티켓만 필터링합니다."""
+    """
+    키워드로 티켓을 필터링합니다.
+    
+    Args:
+        tickets: 티켓 정보 리스트
+        keywords: 필터링할 키워드 리스트
+        
+    Returns:
+        필터링된 티켓 리스트
+    """
     if not keywords:
         return tickets
     
     filtered_tickets = []
     for ticket in tickets:
-        # 티켓의 title, source, link 등 모든 텍스트 필드를 합쳐서 키워드 검색
-        search_text = f"{ticket.get('title', '')} {ticket.get('source', '')}".lower()
-        if any(keyword.lower() in search_text for keyword in keywords):
+        title = ticket.get('title', '').lower()
+        description = ticket.get('description', '').lower()
+        
+        # 제목과 설명에서 키워드 검색
+        text_to_search = f"{title} {description}"
+        if any(keyword.lower() in text_to_search for keyword in keywords):
             filtered_tickets.append(ticket)
-            
+    
     return filtered_tickets
+
+
+def setup_discord_notifier(config: Dict[str, Any]) -> DiscordNotifier:
+    """
+    설정을 기반으로 디스코드 알림기를 설정합니다.
+    
+    Args:
+        config: 설정 정보
+        
+    Returns:
+        설정된 DiscordNotifier 인스턴스
+    """
+    webhook_url = config.get('DISCORD_WEBHOOK_URL')
+    if not webhook_url:
+        raise ValueError("DISCORD_WEBHOOK_URL이 설정되지 않았습니다.")
+    
+    keywords = config.get('KEYWORDS', [])
+    priority_keywords = config.get('PRIORITY_KEYWORDS', [])
+    
+    return DiscordNotifier(
+        webhook_url=webhook_url,
+        keywords=keywords,
+        priority_keywords=priority_keywords
+    )
 
 
 def get_crawler_functions(sources: List[str]) -> Dict[str, Callable[[], List[Dict[str, Any]]]]:
@@ -144,63 +180,104 @@ def collect_all_tickets(sources: List[str]) -> List[Dict[str, Any]]:
     return all_tickets
 
 
-def monitor_tickets(config: Dict[str, Any]):
+def monitor_tickets():
     """
-    주기적으로 티켓 정보를 모니터링하고 디스코드로 알림을 보냅니다.
-    
-    Args:
-        config: 설정 정보를 담은 딕셔너리
+    티켓 정보를 주기적으로 모니터링하고 디스코드로 알림을 보냅니다.
+    개선된 알림 시스템과 통계 기능을 포함합니다.
     """
-    webhook_url = config["DISCORD_WEBHOOK_URL"]
-    interval = config["interval"]
-    sources = config["sources"]
-    keywords = config["KEYWORDS"]
+    config = load_config()
     
-    notifier = DiscordNotifier(webhook_url)
-    
-    logging.info(f"티켓 모니터링을 시작합니다. 간격: {interval}초")
-    logging.info(f"모니터링 대상 사이트: {', '.join(sources)}")
-    logging.info(f"모니터링 키워드: {', '.join(keywords) if keywords else '없음'}")
-    
+    # 개선된 디스코드 알림기 초기화
     try:
-        while True:
-            start_time = time.time()
-            logging.info(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 티켓 정보 수집 시작")
-            
-            # 1. 티켓 정보 수집
-            all_tickets = collect_all_tickets(sources)
-            
-            # 2. 키워드로 필터링
-            filtered_tickets = filter_tickets_by_keyword(all_tickets, keywords)
-            logging.info(f"키워드 필터링 후 {len(filtered_tickets)}개의 티켓이 남았습니다.")
-            
-            # 3. 모든 수집 정보 저장 (필터링 전)
-            save_all_tickets(all_tickets)
-            
-            # 4. 새로운 티켓 정보만 알림 전송 (필터링 후)
-            if filtered_tickets:
-                sent_count = notifier.send_batch_notifications(filtered_tickets)
-                logging.info(f"{sent_count}개의 새로운 티켓 정보를 디스코드로 전송했습니다.")
-            else:
-                logging.info("전송할 티켓 정보가 없습니다.")
-            
-            # 5. 다음 실행까지 대기
-            elapsed = time.time() - start_time
-            wait_time = max(interval - elapsed, 0)
-            
-            # 정확한 간격을 위해 조금의 랜덤 지연 추가 (봇 감지 방지)
-            jitter = random.uniform(0, 60)
-            wait_time += jitter
-            
-            next_run_str = datetime.fromtimestamp(time.time() + wait_time).strftime('%Y-%m-%d %H:%M:%S')
-            logging.info(f"다음 실행 시간: {next_run_str} (약 {wait_time/60:.1f}분 후)")
-            time.sleep(wait_time)
-            
-    except KeyboardInterrupt:
-        logging.info("모니터링을 종료합니다.")
+        discord_notifier = setup_discord_notifier(config)
+        logging.info("디스코드 알림기가 성공적으로 초기화되었습니다.")
     except Exception as e:
-        logging.critical(f"모니터링 중 치명적인 오류 발생: {e}", exc_info=True)
-        raise
+        logging.error(f"디스코드 알림기 초기화 실패: {e}")
+        return
+    
+    logging.info("티켓 모니터링을 시작합니다...")
+    
+    # 모니터링 통계
+    monitoring_stats = {
+        'total_cycles': 0,
+        'total_tickets_found': 0,
+        'total_notifications_sent': 0,
+        'start_time': datetime.now()
+    }
+    
+    while True:
+        try:
+            monitoring_stats['total_cycles'] += 1
+            cycle_start = datetime.now()
+            
+            logging.info(f"모니터링 사이클 #{monitoring_stats['total_cycles']} 시작")
+            
+            # 모든 소스에서 티켓 정보 수집
+            all_tickets = collect_all_tickets(config['sources'])
+            
+            if all_tickets:
+                monitoring_stats['total_tickets_found'] += len(all_tickets)
+                
+                # 키워드로 필터링 (디스코드 알림기에서도 추가 필터링 수행)
+                filtered_tickets = filter_tickets_by_keyword(all_tickets, config.get('KEYWORDS', []))
+                
+                if filtered_tickets:
+                    logging.info(f"필터링된 티켓 {len(filtered_tickets)}개를 발견했습니다.")
+                    
+                    # 배치 알림 전송 (개선된 시스템 사용)
+                    batch_delay = config.get('notification_delay', 1.0)  # 기본 1초 지연
+                    max_batch_size = config.get('max_notifications_per_cycle', 10)  # 기본 10개 제한
+                    
+                    result = discord_notifier.send_batch_notifications(
+                        filtered_tickets, 
+                        delay=batch_delay,
+                        max_per_batch=max_batch_size
+                    )
+                    
+                    monitoring_stats['total_notifications_sent'] += result['sent']
+                    
+                    # 결과 로깅
+                    if result['sent'] > 0:
+                        logging.info(f"알림 전송 완료: 성공 {result['sent']}개, 스킵 {result['skipped']}개, 실패 {result['failed']}개")
+                    else:
+                        logging.info("새로운 티켓이 없거나 모든 알림이 스킵되었습니다.")
+                        
+                    # 통계 정보 출력 (매 10사이클마다)
+                    if monitoring_stats['total_cycles'] % 10 == 0:
+                        stats = discord_notifier.get_notification_stats()
+                        uptime = datetime.now() - monitoring_stats['start_time']
+                        logging.info(f"모니터링 통계 - 가동시간: {uptime}, 총 사이클: {monitoring_stats['total_cycles']}, "
+                                   f"오늘 알림: {stats['today_count']}개, 총 알림: {stats['total_count']}개")
+                        
+                else:
+                    logging.info("키워드 조건에 맞는 티켓이 없습니다.")
+            else:
+                logging.info("수집된 티켓이 없습니다.")
+            
+            # 사이클 완료 시간 계산
+            cycle_duration = (datetime.now() - cycle_start).total_seconds()
+            
+            # 다음 실행까지 대기
+            interval = config.get('interval', 300)  # 기본 5분
+            actual_wait = max(0, interval - cycle_duration)  # 실행 시간을 고려한 대기 시간
+            
+            if actual_wait > 0:
+                logging.info(f"사이클 완료 (소요시간: {cycle_duration:.1f}초). {actual_wait:.0f}초 후 다시 확인합니다.")
+                time.sleep(actual_wait)
+            else:
+                logging.warning(f"사이클 실행 시간({cycle_duration:.1f}초)이 설정된 간격({interval}초)을 초과했습니다.")
+            
+        except KeyboardInterrupt:
+            logging.info("사용자 요청으로 모니터링을 중단합니다.")
+            # 최종 통계 출력
+            uptime = datetime.now() - monitoring_stats['start_time']
+            logging.info(f"최종 통계 - 가동시간: {uptime}, 총 사이클: {monitoring_stats['total_cycles']}, "
+                       f"발견된 티켓: {monitoring_stats['total_tickets_found']}개, 전송된 알림: {monitoring_stats['total_notifications_sent']}개")
+            break
+        except Exception as e:
+            logging.error(f"모니터링 중 오류 발생: {e}")
+            logging.info("60초 후 재시도합니다.")
+            time.sleep(60)  # 오류 발생 시 1분 대기 후 재시도
 
 
 def main():
@@ -212,7 +289,7 @@ def main():
     config = load_config()
     
     # 모니터링 시작
-    monitor_tickets(config)
+    monitor_tickets()
 
 
 if __name__ == "__main__":

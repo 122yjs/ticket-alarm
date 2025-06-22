@@ -20,13 +20,20 @@
                     <h1>티켓 오픈 모니터</h1>
                 </div>
                 <div class="header-actions">
+                    {% if is_admin %}
                     <button id="refreshBtn" class="btn btn-primary">
                         <i class="fas fa-sync-alt"></i>
-                        새로고침
+                        수동 새로고침
                     </button>
+                    {% endif %}
                     <div class="last-update">
                         <i class="fas fa-clock"></i>
+                        <span>마지막 업데이트: </span>
                         <span id="lastUpdate">{{ last_update }}</span>
+                    </div>
+                    <div class="auto-refresh-info">
+                        <i class="fas fa-sync"></i>
+                        <span>자동 갱신: 1시간마다</span>
                     </div>
                 </div>
             </div>
@@ -176,6 +183,9 @@
                 <div class="footer-info">
                     <p>&copy; 2024 티켓 오픈 모니터. 실시간 공연 티켓 알림 시스템</p>
                     <p>마지막 업데이트: <span id="footerLastUpdate">{{ last_update }}</span></p>
+                    {% if is_admin %}
+                    <p class="admin-info">관리자 모드 - 수동 새로고침 권한 있음</p>
+                    {% endif %}
                 </div>
                 <div class="footer-links">
                     <a href="#" class="footer-link">도움말</a>
@@ -187,6 +197,14 @@
     </footer>
 
     <!-- JavaScript -->
+    <script>
+        // 서버에서 전달받은 설정값들
+        window.APP_CONFIG = {
+            isAdmin: {{ 'true' if is_admin else 'false' }},
+            autoRefreshInterval: {{ auto_refresh_interval }},
+            lastUpdateIso: {{ ('"' + last_update_iso + '"') if last_update_iso else 'null' }}
+        };
+    </script>
     <script src="/static/script.js"></script>
 </body>
 </html>

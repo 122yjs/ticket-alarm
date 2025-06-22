@@ -86,7 +86,26 @@ body {
     align-items: center;
     gap: 0.5rem;
     color: var(--text-secondary);
-    font-size: 0.875rem;
+    font-size: 0.9rem;
+}
+
+.auto-refresh-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--background-secondary);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.admin-info {
+    color: var(--success-color);
+    font-weight: 500;
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
 }
 
 /* 버튼 스타일 */

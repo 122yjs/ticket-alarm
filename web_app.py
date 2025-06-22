@@ -56,6 +56,12 @@ templates = Jinja2Templates(directory="templates")
 last_update_time = None
 ticket_cache = []
 
+# 사용자 권한 설정 (실제 환경에서는 데이터베이스나 설정 파일에서 관리)
+ADMIN_USERS = {"admin", "manager"}  # 관리자 권한을 가진 사용자 목록
+
+# 자동 갱신 설정
+AUTO_REFRESH_INTERVAL = 3600  # 1시간 (초 단위)
+
 def get_ticket_stats(tickets: List[Dict]) -> Dict[str, Any]:
     """
     티켓 통계 정보를 계산합니다.
@@ -158,18 +164,24 @@ async def startup_event():
     refresh_ticket_data()
 
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
+async def home(request: Request, user: Optional[str] = Query(None, description="사용자 ID")):
     """
     메인 페이지를 렌더링합니다.
     """
     stats = get_ticket_stats(ticket_cache)
+    
+    # 사용자 권한 확인
+    is_admin = user in ADMIN_USERS if user else False
     
     return templates.TemplateResponse("index.html", {
         "request": request,
         "tickets": ticket_cache[:50],  # 최대 50개만 표시
         "stats": stats,
         "last_update": last_update_time.strftime("%Y. %m. %d. %p %I:%M") if last_update_time else "업데이트 없음",
-        "total_tickets": len(ticket_cache)
+        "last_update_iso": last_update_time.isoformat() if last_update_time else None,
+        "total_tickets": len(ticket_cache),
+        "is_admin": is_admin,
+        "auto_refresh_interval": AUTO_REFRESH_INTERVAL * 1000  # JavaScript용 밀리초 단위
     })
 
 @app.get("/api/tickets")
@@ -248,16 +260,26 @@ async def get_tickets(
         "stats": get_ticket_stats(filtered_tickets)
     })
 
-@app.get("/api/refresh")
-async def refresh_data():
+@app.post("/api/refresh")
+async def refresh_data(user: Optional[str] = Query(None, description="사용자 ID")):
     """
-    티켓 데이터를 수동으로 새로고침합니다.
+    티켓 데이터를 수동으로 새로고침합니다. (관리자 전용)
     """
+    # 관리자 권한 확인
+    if not user or user not in ADMIN_USERS:
+        raise HTTPException(
+            status_code=403, 
+            detail="관리자 권한이 필요합니다. 수동 새로고침은 관리자만 사용할 수 있습니다."
+        )
+    
     refresh_ticket_data()
+    logger.info(f"관리자 {user}가 수동으로 데이터를 새로고침했습니다.")
+    
     return JSONResponse({
         "status": "success",
         "message": "데이터가 새로고침되었습니다.",
         "last_update": last_update_time.isoformat() if last_update_time else None,
+        "last_update_formatted": last_update_time.strftime("%Y. %m. %d. %p %I:%M") if last_update_time else "업데이트 없음",
         "total_tickets": len(ticket_cache)
     })
 
@@ -268,6 +290,19 @@ async def get_stats():
     """
     stats = get_ticket_stats(ticket_cache)
     return JSONResponse(stats)
+
+@app.get("/api/update-info")
+async def get_update_info():
+    """
+    데이터 업데이트 정보를 반환합니다.
+    """
+    return JSONResponse({
+        "last_update": last_update_time.isoformat() if last_update_time else None,
+        "last_update_formatted": last_update_time.strftime("%Y. %m. %d. %p %I:%M") if last_update_time else "업데이트 없음",
+        "total_tickets": len(ticket_cache),
+        "auto_refresh_interval": AUTO_REFRESH_INTERVAL,
+        "next_auto_refresh": (last_update_time + timedelta(seconds=AUTO_REFRESH_INTERVAL)).isoformat() if last_update_time else None
+    })
 
 def _parse_ticket_date(date_str: str) -> Optional[datetime.date]:
     """
