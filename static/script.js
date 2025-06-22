@@ -19,6 +19,7 @@ const elements = {
     platformFilter: null,
     genreFilter: null,
     dateFilter: null,
+    sortFilter: null,
     searchInput: null,
     viewBtns: null,
     lastUpdate: null,
@@ -46,6 +47,7 @@ function initializeElements() {
     elements.platformFilter = document.getElementById('platformFilter');
     elements.genreFilter = document.getElementById('genreFilter');
     elements.dateFilter = document.getElementById('dateFilter');
+    elements.sortFilter = document.getElementById('sortFilter');
     elements.searchInput = document.getElementById('searchInput');
     elements.viewBtns = document.querySelectorAll('.view-btn');
     elements.lastUpdate = document.getElementById('lastUpdate');
@@ -63,6 +65,7 @@ function initializeEventListeners() {
     elements.platformFilter.addEventListener('change', applyFilters);
     elements.genreFilter.addEventListener('change', applyFilters);
     elements.dateFilter.addEventListener('change', applyFilters);
+    elements.sortFilter.addEventListener('change', applySorting);
     
     // 검색 입력
     let searchTimeout;
@@ -105,7 +108,7 @@ async function loadTickets() {
         const data = await response.json();
         
         currentTickets = data.tickets || [];
-        applyFilters();
+        applyFilters(); // 필터와 정렬 모두 적용
         
     } catch (error) {
         console.error('티켓 데이터 로드 실패:', error);
@@ -184,7 +187,7 @@ async function applyFilters() {
         const data = await response.json();
         
         filteredTickets = data.tickets || [];
-        renderTickets(filteredTickets);
+        applySorting(); // 필터 적용 후 정렬도 함께 적용
         
     } catch (error) {
         console.error('필터 적용 실패:', error);
@@ -230,7 +233,7 @@ function createTicketElement(ticket) {
     
     div.innerHTML = `
         <div class="ticket-header">
-            <span class="ticket-platform">${escapeHtml(platform)}</span>
+            <span class="platform-tag ${getPlatformClass(platform)}">${escapeHtml(platform)}</span>
             <span class="ticket-date ${dateClass}">${escapeHtml(openDate)}</span>
         </div>
         
@@ -526,3 +529,117 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+/**
+ * 정렬 적용
+ */
+function applySorting() {
+    if (filteredTickets.length === 0) return;
+    
+    const sortValue = elements.sortFilter.value;
+    const sortedTickets = [...filteredTickets];
+    
+    switch (sortValue) {
+        case 'open_date_desc':
+            sortedTickets.sort((a, b) => {
+                const dateA = parseTicketDate(a.open_date);
+                const dateB = parseTicketDate(b.open_date);
+                return dateB - dateA;
+            });
+            break;
+            
+        case 'open_date_asc':
+            sortedTickets.sort((a, b) => {
+                const dateA = parseTicketDate(a.open_date);
+                const dateB = parseTicketDate(b.open_date);
+                return dateA - dateB;
+            });
+            break;
+            
+        case 'performance_date_asc':
+            sortedTickets.sort((a, b) => {
+                const dateA = parseTicketDate(a.performance_date || a.open_date);
+                const dateB = parseTicketDate(b.performance_date || b.open_date);
+                return dateA - dateB;
+            });
+            break;
+            
+        case 'title_asc':
+            sortedTickets.sort((a, b) => {
+                const titleA = (a.title || '').toLowerCase();
+                const titleB = (b.title || '').toLowerCase();
+                return titleA.localeCompare(titleB, 'ko');
+            });
+            break;
+            
+        case 'popularity_desc':
+            // 인기순은 수집 시간이 최근인 것을 우선으로 정렬
+            sortedTickets.sort((a, b) => {
+                const timeA = new Date(a.collected_at || 0);
+                const timeB = new Date(b.collected_at || 0);
+                return timeB - timeA;
+            });
+            break;
+    }
+    
+    renderTickets(sortedTickets);
+}
+
+/**
+ * 티켓 날짜 파싱
+ */
+function parseTicketDate(dateStr) {
+    if (!dateStr || dateStr === '미정') {
+        return new Date(0); // 미정인 경우 가장 오래된 날짜로 처리
+    }
+    
+    const today = new Date();
+    
+    try {
+        if (dateStr.includes('.')) {
+            const parts = dateStr.split('.');
+            if (parts.length === 2) {
+                // MM.DD 형식
+                return new Date(today.getFullYear(), parseInt(parts[0]) - 1, parseInt(parts[1]));
+            } else if (parts.length === 3) {
+                // YYYY.MM.DD 형식
+                return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            }
+        } else if (dateStr.includes('/')) {
+            const parts = dateStr.split('/');
+            if (parts.length === 2) {
+                // MM/DD 형식
+                return new Date(today.getFullYear(), parseInt(parts[0]) - 1, parseInt(parts[1]));
+            }
+        }
+        
+        // ISO 형식 시도
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed.getTime())) {
+            return parsed;
+        }
+    } catch (error) {
+        console.warn('날짜 파싱 실패:', dateStr, error);
+    }
+    
+    return new Date(0);
+}
+
+/**
+ * 플랫폼별 CSS 클래스 반환
+ */
+function getPlatformClass(platform) {
+    if (!platform) return 'default';
+    
+    const platformLower = platform.toLowerCase();
+    
+    if (platformLower.includes('interpark') || platformLower.includes('인터파크')) {
+        return 'interpark';
+    } else if (platformLower.includes('melon') || platformLower.includes('멜론')) {
+        return 'melon';
+    } else if (platformLower.includes('yes24')) {
+        return 'yes24';
+    } else {
+        return 'default';
+    }
+}
