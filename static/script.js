@@ -9,6 +9,10 @@ let currentTickets = [];
 let filteredTickets = [];
 let currentView = 'grid';
 let isLoading = false;
+let autoRefreshTimer = null;
+let lastUpdateTime = null;
+let isAdmin = false;
+let autoRefreshInterval = 3600000; // 기본값 1시간 (밀리초)
 
 // DOM 요소
 const elements = {
@@ -28,12 +32,24 @@ const elements = {
 
 // 초기화
 document.addEventListener('DOMContentLoaded', function() {
+    // 서버에서 전달받은 설정값 적용
+    if (window.APP_CONFIG) {
+        isAdmin = window.APP_CONFIG.isAdmin || false;
+        autoRefreshInterval = window.APP_CONFIG.autoRefreshInterval || 3600000;
+        if (window.APP_CONFIG.lastUpdateIso) {
+            lastUpdateTime = new Date(window.APP_CONFIG.lastUpdateIso);
+        }
+    }
+    
     initializeElements();
     initializeEventListeners();
     loadTickets();
     
-    // 5분마다 자동 새로고침
-    setInterval(autoRefresh, 5 * 60 * 1000);
+    // 자동 갱신 타이머 시작 (1시간마다)
+    startAutoRefresh();
+    
+    // 업데이트 시간 표시 갱신
+    updateLastUpdateDisplay();
 });
 
 /**
@@ -58,8 +74,10 @@ function initializeElements() {
  * 이벤트 리스너 초기화
  */
 function initializeEventListeners() {
-    // 새로고침 버튼
-    elements.refreshBtn.addEventListener('click', refreshData);
+    // 새로고침 버튼 (관리자만)
+    if (elements.refreshBtn && isAdmin) {
+        elements.refreshBtn.addEventListener('click', refreshData);
+    }
     
     // 필터 변경
     elements.platformFilter.addEventListener('change', applyFilters);
@@ -84,10 +102,13 @@ function initializeEventListeners() {
     
     // 키보드 단축키
     document.addEventListener('keydown', function(e) {
-        if (e.ctrlKey && e.key === 'r') {
+        // Ctrl + R: 새로고침 (관리자만)
+        if (e.ctrlKey && e.key === 'r' && isAdmin) {
             e.preventDefault();
             refreshData();
         }
+        
+        // '/': 검색창 포커스
         if (e.key === '/' && !e.ctrlKey && !e.altKey) {
             e.preventDefault();
             elements.searchInput.focus();
@@ -119,23 +140,36 @@ async function loadTickets() {
 }
 
 /**
- * 데이터 새로고침
+ * 데이터 새로고침 (관리자 전용)
  */
 async function refreshData() {
-    if (isLoading) return;
+    if (isLoading || !isAdmin) return;
     
     const originalText = elements.refreshBtn.innerHTML;
     elements.refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 새로고침 중...';
     elements.refreshBtn.disabled = true;
     
     try {
-        const response = await fetch('/api/refresh');
+        // 관리자 권한으로 수동 새로고침 요청
+        const response = await fetch('/api/refresh?user=admin', {
+            method: 'POST'
+        });
+        
+        if (response.status === 403) {
+            showNotification('관리자 권한이 필요합니다.', 'error');
+            return;
+        }
+        
         const data = await response.json();
         
         if (data.status === 'success') {
             await loadTickets();
-            updateLastUpdateTime();
+            lastUpdateTime = new Date(data.last_update);
+            updateLastUpdateDisplay();
             showNotification('데이터가 성공적으로 새로고침되었습니다.', 'success');
+            
+            // 자동 갱신 타이머 재시작
+            startAutoRefresh();
         }
     } catch (error) {
         console.error('데이터 새로고침 실패:', error);
@@ -147,16 +181,54 @@ async function refreshData() {
 }
 
 /**
- * 자동 새로고침
+ * 자동 갱신 시작
  */
-async function autoRefresh() {
+function startAutoRefresh() {
+    // 기존 타이머 정리
+    if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+    }
+    
+    // 새 타이머 시작 (1시간마다)
+    autoRefreshTimer = setInterval(async () => {
+        try {
+            await autoRefreshData();
+            console.log('자동 갱신 완료');
+        } catch (error) {
+            console.error('자동 갱신 실패:', error);
+        }
+    }, autoRefreshInterval);
+    
+    console.log(`자동 갱신 타이머 시작: ${autoRefreshInterval / 1000}초마다`);
+}
+
+/**
+ * 자동 데이터 갱신 (백그라운드)
+ */
+async function autoRefreshData() {
     try {
-        await fetch('/api/refresh');
-        await loadTickets();
-        updateLastUpdateTime();
-        console.log('자동 새로고침 완료');
+        // 업데이트 정보만 가져와서 데이터 영역만 갱신
+        const response = await fetch('/api/update-info');
+        const updateInfo = await response.json();
+        
+        // 새로운 데이터가 있는지 확인
+        if (updateInfo.last_update) {
+            const serverUpdateTime = new Date(updateInfo.last_update);
+            
+            // 서버의 업데이트 시간이 클라이언트보다 최신인 경우에만 갱신
+            if (!lastUpdateTime || serverUpdateTime > lastUpdateTime) {
+                await loadTickets();
+                lastUpdateTime = serverUpdateTime;
+                updateLastUpdateDisplay();
+                
+                // 조용한 알림 (사용자가 페이지를 보고 있을 때만)
+                if (document.visibilityState === 'visible') {
+                    showNotification('새로운 티켓 정보가 업데이트되었습니다.', 'info');
+                }
+            }
+        }
     } catch (error) {
-        console.error('자동 새로고침 실패:', error);
+        console.error('자동 갱신 실패:', error);
     }
 }
 
@@ -447,11 +519,12 @@ function showNotification(message, type = 'info') {
 }
 
 /**
- * 마지막 업데이트 시간 갱신
+ * 마지막 업데이트 시간 표시 갱신
  */
-function updateLastUpdateTime() {
-    const now = new Date();
-    const timeString = now.toLocaleString('ko-KR', {
+function updateLastUpdateDisplay() {
+    if (!lastUpdateTime) return;
+    
+    const timeString = lastUpdateTime.toLocaleString('ko-KR', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
@@ -466,6 +539,15 @@ function updateLastUpdateTime() {
         elements.footerLastUpdate.textContent = timeString;
     }
 }
+
+/**
+ * 페이지 언로드 시 타이머 정리
+ */
+window.addEventListener('beforeunload', function() {
+    if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+    }
+});
 
 // CSS 애니메이션 추가
 const style = document.createElement('style');
