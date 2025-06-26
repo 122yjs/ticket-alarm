@@ -23,8 +23,9 @@ from fastapi.templating import Jinja2Templates
 import uvicorn
 
 # 로컬 모듈 임포트
-from data_manager import load_tickets, load_config
+from data_manager import load_config
 from filters import filter_tickets_by_keywords, filter_tickets_by_date_range
+from database_manager import DatabaseManager
 
 # 로깅 설정
 logging.basicConfig(
@@ -40,7 +41,9 @@ async def lifespan(app: FastAPI):
     애플리케이션 시작 시 데이터 로드 및 정리 작업을 수행하는 lifespan 이벤트 핸들러
     """
     logger.info("티켓 오픈 모니터 웹 애플리케이션 시작")
-    refresh_ticket_data()
+    app.state.db_manager = DatabaseManager()
+    logger.info("데이터베이스 관리자 초기화")
+    refresh_ticket_data() # 앱 시작 시 초기 데이터 로드
     yield
     logger.info("애플리케이션 종료")
 
@@ -66,14 +69,79 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 # 전역 변수
-last_update_time = None
-ticket_cache = []
 
 # 사용자 권한 설정 (실제 환경에서는 데이터베이스나 설정 파일에서 관리)
 ADMIN_USERS = {"admin", "manager"}  # 관리자 권한을 가진 사용자 목록
 
 # 자동 갱신 설정
 AUTO_REFRESH_INTERVAL = 3600  # 1시간 (초 단위)
+
+def get_source_from_relates(relates: Optional[Dict[str, Any]]) -> str:
+    """
+    relates 딕셔너리의 relateurl을 기반으로 예매처 이름을 반환합니다.
+    """
+    relates_url = relates if isinstance(relates, str) else ""
+    if not relates_url:
+        return "기타"
+    if "ticket.interpark.com" in relates_url:
+        return "인터파크"
+    if "ticket.yes24.com" in relates_url:
+        return "예스24"
+    if "ticketlink.co.kr" in relates_url:
+        return "티켓링크"
+    if "ticket.melon.com" in relates_url:
+        return "멜론티켓"
+    return "기타"
+
+def map_genre(genre: Optional[str]) -> str:
+    """
+    KOPIS 장르를 프론트엔드 필터 카테고리로 매핑합니다.
+    """
+    if not genre:
+        return "기타"
+
+    if '대중음악' in genre:
+        return '콘서트'
+    elif '서양음악(클래식)' in genre or '한국음악(국악)' in genre:
+        return '클래식'
+    elif '뮤지컬' in genre:
+        return '뮤지컬'
+    elif '연극' in genre:
+        return '연극'
+    else:
+        return '기타'
+
+def transform_performance_for_frontend(performance: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    데이터베이스 공연 정보를 프론트엔드에서 사용하는 형식으로 변환합니다.
+    """
+    start_date = performance.get("start_date", "")
+    end_date = performance.get("end_date", "")
+    
+    # KOPIS 날짜 형식(YYYY.MM.DD)을 JS new Date()가 인식할 수 있는 형식(YYYY-MM-DD HH:MM:SS)으로 변환
+    try:
+        open_date_obj = datetime.strptime(start_date, "%Y.%m.%d")
+        open_date_formatted = open_date_obj.strftime("%Y-%m-%d %H:%M:%S")
+    except (ValueError, TypeError):
+        open_date_formatted = start_date # 파싱 실패 시 원본 값 사용
+
+    # 데이터 가공 로직 적용
+    source = get_source_from_relates(performance.get("relates_url"))
+    genre = map_genre(performance.get("genre"))
+
+    return {
+        "id": performance.get("kopis_id"),
+        "kopis_id": performance.get("kopis_id"),
+        "title": performance.get("name"),
+        "place": performance.get("facility_name"),
+        "image_url": performance.get("poster_url"),
+        "open_date": open_date_formatted,
+        "source": source,
+        "url": f"/detail/{performance.get('kopis_id')}",
+        "perf_date": f"{start_date} ~ {end_date}",
+        "genre": genre,
+        "status": performance.get("status"),
+    }
 
 def get_ticket_stats(tickets: List[Dict]) -> Dict[str, Any]:
     """
@@ -101,15 +169,12 @@ def get_ticket_stats(tickets: List[Dict]) -> Dict[str, Any]:
         platform = ticket.get('source', '알 수 없음')
         platform_counts[platform] = platform_counts.get(platform, 0) + 1
     
-    # 장르별 카운트 (제목에서 추출)
-    genre_counts = {
-        "콘서트": 0,
-        "뮤지컬": 0,
-        "연극": 0,
-        "클래식": 0,
-        "기타": 0
-    }
-    
+    # 장르별 카운트
+    genre_counts = {}
+    for ticket in tickets:
+        genre = ticket.get('genre', '기타')
+        genre_counts[genre] = genre_counts.get(genre, 0) + 1
+
     today = datetime.now().date()
     tomorrow = today + timedelta(days=1)
     week_end = today + timedelta(days=7)
@@ -119,20 +184,6 @@ def get_ticket_stats(tickets: List[Dict]) -> Dict[str, Any]:
     this_week_count = 0
     
     for ticket in tickets:
-        title = ticket.get('title', '').lower()
-        
-        # 장르 분류
-        if any(keyword in title for keyword in ['콘서트', 'concert', '공연']):
-            genre_counts["콘서트"] += 1
-        elif any(keyword in title for keyword in ['뮤지컬', 'musical']):
-            genre_counts["뮤지컬"] += 1
-        elif any(keyword in title for keyword in ['연극', 'play']):
-            genre_counts["연극"] += 1
-        elif any(keyword in title for keyword in ['클래식', 'classic', '오케스트라']):
-            genre_counts["클래식"] += 1
-        else:
-            genre_counts["기타"] += 1
-        
         # 날짜별 카운트
         open_date_str = ticket.get('open_date', '')
         if open_date_str and open_date_str != '미정':
@@ -154,170 +205,78 @@ def get_ticket_stats(tickets: List[Dict]) -> Dict[str, Any]:
         "this_week_count": this_week_count
     }
 
-def refresh_ticket_data():
-    """
-    티켓 데이터를 새로고침합니다.
-    """
-    global ticket_cache, last_update_time
-    
-    try:
-        ticket_cache = load_tickets()
-        last_update_time = datetime.now()
-        logger.info(f"티켓 데이터 새로고침 완료: {len(ticket_cache)}건")
-    except Exception as e:
-        logger.error(f"티켓 데이터 로드 중 오류: {e}")
-        ticket_cache = []
-
-
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, user: Optional[str] = Query(None, description="사용자 ID")):
     """
-    메인 페이지를 렌더링합니다.
+    메인 페이지를 렌더링합니다. 데이터는 클라이언트 측에서 API를 통해 로드됩니다.
     """
-    all_tickets = load_tickets()
-    stats = get_ticket_stats(all_tickets)
-    
-    # 사용자 권한 확인
     is_admin = user in ADMIN_USERS if user else False
     
+    # 초기 페이지 로드 시에는 빈 데이터로 렌더링하고,
+    # 클라이언트 스크립트가 /api/tickets를 호출하여 동적으로 데이터를 채웁니다.
+    
+    app_config = {
+        "isAdmin": is_admin,
+        "autoRefreshInterval": AUTO_REFRESH_INTERVAL,
+        "lastUpdateIso": datetime.now().isoformat() # 초기 로드 시간
+    }
+
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "tickets": all_tickets[:50],  # 최대 50개만 표시
-        "stats": stats,
-        "last_update": last_update_time.strftime("%Y. %m. %d. %p %I:%M") if last_update_time else "업데이트 없음",
-        "last_update_iso": last_update_time.isoformat() if last_update_time else None,
-        "total_tickets": len(all_tickets),
+        "tickets": [], # 초기에는 비어있음
+        "stats": get_ticket_stats([]), # 초기에는 비어있음
+        "last_update": "로딩 중...",
+        "total_tickets": 0,
         "is_admin": is_admin,
-        "auto_refresh_interval": AUTO_REFRESH_INTERVAL * 1000  # JavaScript용 밀리초 단위
+        "app_config_json": json.dumps(app_config)
     })
+
+# /performance/{kopis_id} 엔드포인트는 현재 사용되지 않으므로 제거하거나 주석 처리합니다.
+# 이 엔드포인트는 DB 중심 아키텍처에서 의미가 있습니다.
 
 @app.get("/api/tickets")
-async def get_tickets(
-    platform: Optional[str] = Query(None, description="플랫폼 필터"),
-    genre: Optional[str] = Query(None, description="장르 필터"),
-    date_filter: Optional[str] = Query(None, description="날짜 필터 (today, tomorrow, week)"),
-    sort: Optional[str] = Query("open_date_asc", description="정렬 순서"),
-    search: Optional[str] = Query(None, description="검색어"),
-    limit: int = Query(50, description="최대 결과 수")
-):
+async def get_tickets(request: Request):
     """
-    필터링된 티켓 목록을 JSON으로 반환합니다.
+    데이터베이스에서 모든 공연 정보를 가져와 가공한 후 JSON으로 반환합니다.
+    이 과정에서 예매처(source)와 장르(genre) 정보가 변환됩니다.
     """
-    all_tickets = load_tickets()
-    filtered_tickets = all_tickets.copy()
-    
-    # 플랫폼 필터
-    if platform and platform != "전체":
-        filtered_tickets = [t for t in filtered_tickets if t.get('source') == platform]
-    
-    # 장르 필터
-    if genre and genre != "전체":
-        genre_keywords = {
-            "콘서트": ['콘서트', 'concert', '공연'],
-            "뮤지컬": ['뮤지컬', 'musical'],
-            "연극": ['연극', 'play'],
-            "클래식": ['클래식', 'classic', '오케스트라']
-        }
+    try:
+        db_manager = request.app.state.db_manager
+        raw_performances = db_manager.get_all_performances()
         
-        if genre in genre_keywords:
-            keywords = genre_keywords[genre]
-            filtered_tickets = [
-                t for t in filtered_tickets 
-                if any(keyword in t.get('title', '').lower() for keyword in keywords)
-            ]
-    
-    # 날짜 필터
-    if date_filter and date_filter != "all":
-        today = datetime.now().date()
-        date_filtered_tickets = []
-        for t in filtered_tickets:
-            parsed_date = _parse_ticket_date_improved(t.get('open_date', ''))
-            if not parsed_date:
-                continue
+        # DB 데이터를 프론트엔드 형식으로 변환
+        transformed_tickets = [transform_performance_for_frontend(p) for p in raw_performances]
+        
+        config = load_config()
+        platform_colors = config.get("platform_colors", {})
+        
+        # 마지막 업데이트 시간은 현재 시간으로 설정 (실시간 조회이므로)
+        last_update = datetime.now()
 
-            if date_filter == "today" and parsed_date == today:
-                date_filtered_tickets.append(t)
-            elif date_filter == "tomorrow" and parsed_date == today + timedelta(days=1):
-                date_filtered_tickets.append(t)
-            elif date_filter == "week" and today <= parsed_date <= today + timedelta(days=6):
-                date_filtered_tickets.append(t)
-        filtered_tickets = date_filtered_tickets
-
-    # 검색어 필터
-    if search:
-        search_lower = search.lower()
-        filtered_tickets = [
-            t for t in filtered_tickets
-            if search_lower in t.get('title', '').lower() or
-               search_lower in t.get('place', '').lower()
-        ]
-    
-    # 정렬
-    if sort == "open_date_desc":
-        filtered_tickets.sort(key=lambda t: _parse_ticket_date_improved(t.get('open_date', '')) or datetime.min.date(), reverse=True)
-    elif sort == "title_asc":
-        filtered_tickets.sort(key=lambda t: t.get('title', ''))
-    else: # 기본 정렬: open_date_asc
-        filtered_tickets.sort(key=lambda t: _parse_ticket_date_improved(t.get('open_date', '')) or datetime.max.date())
-
-    # 결과 제한
-    total_count = len(filtered_tickets)
-    limited_tickets = filtered_tickets[:limit]
-
-    config = load_config()
-    platform_colors = config.get("platform_colors", {})
-
-    return JSONResponse({
-        "tickets": limited_tickets,
-        "total": total_count,
-        "stats": get_ticket_stats(ticket_cache),  # 전체 데이터 기준 통계
-        "platform_colors": platform_colors,
-        "last_update": last_update_time.isoformat() if last_update_time else None
-    })
-
-@app.post("/api/refresh")
-async def refresh_data(user: Optional[str] = Query(None, description="사용자 ID")):
-    """
-    티켓 데이터를 수동으로 새로고침합니다. (관리자 전용)
-    """
-    # 관리자 권한 확인
-    if not user or user not in ADMIN_USERS:
-        raise HTTPException(
-            status_code=403, 
-            detail="관리자 권한이 필요합니다. 수동 새로고침은 관리자만 사용할 수 있습니다."
-        )
-    
-    refresh_ticket_data()
-    logger.info(f"관리자 {user}가 수동으로 데이터를 새로고침했습니다.")
-    
-    return JSONResponse({
-        "status": "success",
-        "message": "데이터가 새로고침되었습니다.",
-        "last_update": last_update_time.isoformat() if last_update_time else None,
-        "last_update_formatted": last_update_time.strftime("%Y. %m. %d. %p %I:%M") if last_update_time else "업데이트 없음",
-        "total_tickets": len(ticket_cache)
-    })
+        return JSONResponse({
+            "tickets": transformed_tickets,
+            "stats": get_ticket_stats(transformed_tickets),
+            "platform_colors": platform_colors,
+            "last_update": last_update.isoformat()
+        })
+    except Exception as e:
+        logger.error(f"/api/tickets 엔드포인트 처리 중 오류 발생: {e}")
+        raise HTTPException(status_code=500, detail="서버 내부 오류가 발생했습니다.")
 
 @app.get("/api/stats")
-async def get_stats():
+async def get_stats(request: Request):
     """
-    티켓 통계 정보를 반환합니다.
+    현재 DB의 데이터를 기반으로 티켓 통계 정보를 반환합니다.
     """
-    stats = get_ticket_stats(ticket_cache)
-    return JSONResponse(stats)
-
-@app.get("/api/update-info")
-async def get_update_info():
-    """
-    데이터 업데이트 정보를 반환합니다.
-    """
-    return JSONResponse({
-        "last_update": last_update_time.isoformat() if last_update_time else None,
-        "last_update_formatted": last_update_time.strftime("%Y. %m. %d. %p %I:%M") if last_update_time else "업데이트 없음",
-        "total_tickets": len(ticket_cache),
-        "auto_refresh_interval": AUTO_REFRESH_INTERVAL,
-        "next_auto_refresh": (last_update_time + timedelta(seconds=AUTO_REFRESH_INTERVAL)).isoformat() if last_update_time else None
-    })
+    try:
+        db_manager = request.app.state.db_manager
+        raw_performances = db_manager.get_all_performances()
+        transformed_tickets = [transform_performance_for_frontend(p) for p in raw_performances]
+        stats = get_ticket_stats(transformed_tickets)
+        return JSONResponse(stats)
+    except Exception as e:
+        logger.error(f"/api/stats 엔드포인트 처리 중 오류 발생: {e}")
+        raise HTTPException(status_code=500, detail="서버 내부 오류가 발생했습니다.")
 
 
 

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>{{ performance.name }} - 티켓 오픈 모니터</title>
+    <meta name="description" content="{{ performance.name }}의 상세 정보입니다." />
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <!-- CSS -->
+    <link href="/static/style.css" rel="stylesheet">
+
+    <!-- Theme -->
+    <script>
+      (function() {
+        const theme = localStorage.getItem('theme') || 'system';
+        if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+</head>
+<body>
+    <!-- 헤더 -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <a href="/" style="text-decoration: none; color: inherit;">
+                        <i class="fas fa-ticket-alt"></i>
+                        <h1>티켓 오픈 모니터</h1>
+                    </a>
+                </div>
+                <div class="header-actions">
+                    <a href="/" class="btn btn-secondary">
+                        <i class="fas fa-list"></i>
+                        목록으로 돌아가기
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 메인 컨텐츠 -->
+    <main class="main">
+        <div class="container">
+            <section class="performance-detail-section">
+                <div class="detail-header">
+                    <div class="poster-container">
+                        <img src="{{ performance.poster_url }}" alt="{{ performance.name }} 포스터" class="detail-poster">
+                    </div>
+                    <div class="detail-main-info">
+                        <h2 class="performance-title">{{ performance.name }}</h2>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label"><i class="fas fa-calendar-alt"></i> 공연기간</span>
+                                <span class="info-value">{{ performance.start_date }} ~ {{ performance.end_date }}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label"><i class="fas fa-map-marker-alt"></i> 공연장소</span>
+                                <span class="info-value">{{ performance.venue }}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label"><i class="fas fa-theater-masks"></i> 장르</span>
+                                <span class="info-value">{{ performance.genre }}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label"><i class="fas fa-info-circle"></i> 공연상태</span>
+                                <span class="info-value">{{ performance.status }}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label"><i class="fas fa-clock"></i> 런타임</span>
+                                <span class="info-value">{{ performance.runtime if performance.runtime else '정보 없음' }}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label"><i class="fas fa-child"></i> 관람연령</span>
+                                <span class="info-value">{{ performance.age_rating if performance.age_rating else '정보 없음' }}</span>
+                            </div>
+                        </div>
+                        {% if performance.ticket_price %}
+                        <div class="ticket-price-info">
+                             <span class="info-label"><i class="fas fa-won-sign"></i> 티켓가격</span>
+                             <span class="info-value">{{ performance.ticket_price }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="detail-content">
+                    {% if performance.cast or performance.crew %}
+                    <div class="content-section">
+                        <h3><i class="fas fa-users"></i> 출연진 및 제작진</h3>
+                        {% if performance.cast %}
+                        <p><strong>출연진:</strong> {{ performance.cast }}</p>
+                        {% else %}
+                        <p><strong>출연진:</strong> 정보 없음</p>
+                        {% endif %}
+                        {% if performance.crew %}
+                        <p><strong>제작진:</strong> {{ performance.crew }}</p>
+                        {% else %}
+                        <p><strong>제작진:</strong> 정보 없음</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if performance.plot %}
+                    <div class="content-section">
+                        <h3><i class="fas fa-book-open"></i> 줄거리</h3>
+                        <p class="plot" style="white-space: pre-wrap;">{{ performance.plot }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- 푸터 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <p>&copy; 2024 티켓 오픈 모니터. 실시간 공연 티켓 알림 시스템</p>
+                </div>
+                <div class="footer-links">
+                    <a href="#" class="footer-link">도움말</a>
+                    <a href="#" class="footer-link">문의하기</a>
+                    <a href="#" class="footer-link">GitHub</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>

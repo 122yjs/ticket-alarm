@@ -5,5 +5,6 @@
   "interval": 3600,
   "notification_delay": 1.0,
   "max_notifications_per_cycle": 10,
-  "sources": ["interpark", "yes24", "melon", "ticketlink"]
+  "sources": ["interpark", "yes24", "melon", "ticketlink"],
+  "KOPIS_API_KEY": "YOUR_API_KEY"
 }

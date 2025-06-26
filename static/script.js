@@ -102,20 +102,8 @@ function applyFiltersAndSort() {
 
     const genre = genreFilter.value;
     if (genre !== 'all') {
-        // 장르는 제목에서 키워드로 판단
-        const genreKeywords = {
-            "콘서트": ['콘서트', 'concert', '공연'],
-            "뮤지컬": ['뮤지컬', 'musical'],
-            "연극": ['연극', 'play'],
-            "클래식": ['클래식', 'classic', '오케스트라']
-        };
-        
-        if (genreKeywords[genre]) {
-            const keywords = genreKeywords[genre];
-            filteredTickets = filteredTickets.filter(t => 
-                keywords.some(keyword => t.title.toLowerCase().includes(keyword))
-            );
-        }
+        // 백엔드에서 제공하는 genre 필드를 직접 사용하여 필터링
+        filteredTickets = filteredTickets.filter(t => t.genre === genre);
     }
 
     const date = dateFilter.value;
@@ -195,22 +183,7 @@ function createTicketCard(ticket) {
         dDay = `D-${diffDays}`;
     }
 
-    // 장르 판단 함수
-    function getTicketGenre(title) {
-        const titleLower = title.toLowerCase();
-        if (['콘서트', 'concert', '공연'].some(keyword => titleLower.includes(keyword))) {
-            return '콘서트';
-        } else if (['뮤지컬', 'musical'].some(keyword => titleLower.includes(keyword))) {
-            return '뮤지컬';
-        } else if (['연극', 'play'].some(keyword => titleLower.includes(keyword))) {
-            return '연극';
-        } else if (['클래식', 'classic', '오케스트라'].some(keyword => titleLower.includes(keyword))) {
-            return '클래식';
-        }
-        return '기타';
-    }
-
-    const ticketGenre = getTicketGenre(ticket.title);
+    const ticketGenre = ticket.genre || '기타';
     const openDateFormatted = ticket.open_date && ticket.open_date !== '미정' ? 
         new Date(ticket.open_date).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : 
         ticket.open_date || '미정';
