@@ -1,727 +1,319 @@
-/**
- * 티켓 오픈 모니터 웹 인터페이스 JavaScript
- * 
- * 실시간 티켓 정보 표시, 필터링, 검색 기능을 제공합니다.
- */
+// 전역 변수 및 초기화
+let allTickets = [];
+let platformColors = {};
+const ticketsContainer = document.getElementById('tickets-container');
+const loadingSpinner = document.getElementById('loading-spinner');
+const noResults = document.getElementById('no-results');
+const platformFilter = document.getElementById('platform-filter');
+const genreFilter = document.getElementById('genre-filter');
+const dateFilter = document.getElementById('date-filter');
+const sortFilter = document.getElementById('sort-filter');
+const searchInput = document.getElementById('search-input');
+const gridViewBtn = document.getElementById('grid-view-btn');
+const listViewBtn = document.getElementById('list-view-btn');
+const lastUpdateSpan = document.getElementById('last-update-time');
+const autoRefreshInfo = document.getElementById('auto-refresh-info');
+const refreshBtn = document.getElementById('refresh-btn');
 
-// 전역 변수
-let currentTickets = [];
-let filteredTickets = [];
-let currentView = 'grid';
-let isLoading = false;
-let autoRefreshTimer = null;
-let lastUpdateTime = null;
-let isAdmin = false;
-let autoRefreshInterval = 3600000; // 기본값 1시간 (밀리초)
+// 날짜 정보 업데이트
+document.getElementById('today-date').textContent = getFormattedDate(0);
+document.getElementById('tomorrow-date').textContent = getFormattedDate(1);
 
-// DOM 요소
-const elements = {
-    ticketsContainer: null,
-    loadingSpinner: null,
-    noResults: null,
-    refreshBtn: null,
-    platformFilter: null,
-    genreFilter: null,
-    dateFilter: null,
-    sortFilter: null,
-    searchInput: null,
-    viewBtns: null,
-    lastUpdate: null,
-    footerLastUpdate: null
-};
-
-// 초기화
-document.addEventListener('DOMContentLoaded', function() {
-    // 서버에서 전달받은 설정값 적용
-    if (window.APP_CONFIG) {
-        isAdmin = window.APP_CONFIG.isAdmin || false;
-        autoRefreshInterval = window.APP_CONFIG.autoRefreshInterval || 3600000;
-        if (window.APP_CONFIG.lastUpdateIso) {
-            lastUpdateTime = new Date(window.APP_CONFIG.lastUpdateIso);
-        }
-    }
-    
-    initializeElements();
-    initializeEventListeners();
-    loadTickets();
-    
-    // 자동 갱신 타이머 시작 (1시간마다)
+// 이벤트 리스너
+document.addEventListener('DOMContentLoaded', () => {
+    loadTicketData();
     startAutoRefresh();
-    
-    // 업데이트 시간 표시 갱신
-    updateLastUpdateDisplay();
+    setView('grid'); // 초기 뷰 설정
 });
 
-/**
- * DOM 요소 초기화
- */
-function initializeElements() {
-    elements.ticketsContainer = document.getElementById('ticketsContainer');
-    elements.loadingSpinner = document.getElementById('loadingSpinner');
-    elements.noResults = document.getElementById('noResults');
-    elements.refreshBtn = document.getElementById('refreshBtn');
-    elements.platformFilter = document.getElementById('platformFilter');
-    elements.genreFilter = document.getElementById('genreFilter');
-    elements.dateFilter = document.getElementById('dateFilter');
-    elements.sortFilter = document.getElementById('sortFilter');
-    elements.searchInput = document.getElementById('searchInput');
-    elements.viewBtns = document.querySelectorAll('.view-btn');
-    elements.lastUpdate = document.getElementById('lastUpdate');
-    elements.footerLastUpdate = document.getElementById('footerLastUpdate');
+[platformFilter, genreFilter, dateFilter, sortFilter].forEach(filter => {
+    filter.addEventListener('change', applyFiltersAndSort);
+});
+
+searchInput.addEventListener('input', debounce(applyFiltersAndSort, 300));
+
+gridViewBtn.addEventListener('click', () => setView('grid'));
+listViewBtn.addEventListener('click', () => setView('list'));
+refreshBtn.addEventListener('click', refreshData);
+
+
+// 데이터 로딩 및 처리
+async function loadTicketData() {
+    showLoading();
+    try {
+        const response = await fetch('/api/tickets');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        allTickets = data.tickets;
+        platformColors = data.platform_colors;
+        updateStats(data.stats);
+        populateFilters(data.stats);
+        applyFiltersAndSort();
+        updateLastUpdateTime(data.last_update);
+    } catch (error) {
+        console.error("티켓 데이터 로딩 실패:", error);
+        ticketsContainer.innerHTML = '<div class="no-results"><i class="fas fa-exclamation-circle"></i><p>티켓 정보를 불러오는 데 실패했습니다.</p></div>';
+    } finally {
+        hideLoading();
+    }
 }
 
-/**
- * 이벤트 리스너 초기화
- */
-function initializeEventListeners() {
-    // 새로고침 버튼 (관리자만)
-    if (elements.refreshBtn && isAdmin) {
-        elements.refreshBtn.addEventListener('click', refreshData);
+function updateStats(stats) {
+    document.getElementById('today-count').textContent = stats.today_count;
+    document.getElementById('tomorrow-count').textContent = stats.tomorrow_count;
+    document.getElementById('this-week-count').textContent = stats.this_week_count;
+    document.getElementById('total-count').textContent = stats.total_count;
+}
+
+function populateFilters(stats) {
+    // 플랫폼 필터 채우기
+    const platformFragment = document.createDocumentFragment();
+    for (const platform in stats.platform_counts) {
+        const option = document.createElement('option');
+        option.value = platform;
+        option.textContent = `${platform}`;
+        platformFragment.appendChild(option);
     }
-    
-    // 필터 변경
-    elements.platformFilter.addEventListener('change', applyFilters);
-    elements.genreFilter.addEventListener('change', applyFilters);
-    elements.dateFilter.addEventListener('change', applyFilters);
-    elements.sortFilter.addEventListener('change', applySorting);
-    
-    // 검색 입력
-    let searchTimeout;
-    elements.searchInput.addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(applyFilters, 300);
-    });
-    
-    // 뷰 변경
-    elements.viewBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const view = this.dataset.view;
-            changeView(view);
+    platformFilter.appendChild(platformFragment);
+
+    // 장르 필터 채우기
+    const genreFragment = document.createDocumentFragment();
+    for (const genre in stats.genre_counts) {
+        if (stats.genre_counts[genre] > 0) {
+            const option = document.createElement('option');
+            option.value = genre;
+            option.textContent = `${genre}`;
+            genreFragment.appendChild(option);
+        }
+    }
+    genreFilter.appendChild(genreFragment);
+}
+
+function applyFiltersAndSort() {
+    let filteredTickets = [...allTickets];
+
+    // 필터링
+    const platform = platformFilter.value;
+    if (platform !== 'all') {
+        filteredTickets = filteredTickets.filter(t => t.source === platform);
+    }
+
+    const genre = genreFilter.value;
+    if (genre !== 'all') {
+        // 장르는 제목에서 키워드로 판단
+        const genreKeywords = {
+            "콘서트": ['콘서트', 'concert', '공연'],
+            "뮤지컬": ['뮤지컬', 'musical'],
+            "연극": ['연극', 'play'],
+            "클래식": ['클래식', 'classic', '오케스트라']
+        };
+        
+        if (genreKeywords[genre]) {
+            const keywords = genreKeywords[genre];
+            filteredTickets = filteredTickets.filter(t => 
+                keywords.some(keyword => t.title.toLowerCase().includes(keyword))
+            );
+        }
+    }
+
+    const date = dateFilter.value;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (date === 'today') {
+        filteredTickets = filteredTickets.filter(t => new Date(t.open_date).toDateString() === today.toDateString());
+    } else if (date === 'tomorrow') {
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        filteredTickets = filteredTickets.filter(t => new Date(t.open_date).toDateString() === tomorrow.toDateString());
+    } else if (date === 'this-week') {
+        const endOfWeek = new Date(today);
+        endOfWeek.setDate(today.getDate() + (6 - today.getDay()));
+        filteredTickets = filteredTickets.filter(t => {
+            const openDate = new Date(t.open_date);
+            return openDate >= today && openDate <= endOfWeek;
         });
+    }
+
+    const searchTerm = searchInput.value.toLowerCase();
+    if (searchTerm) {
+        filteredTickets = filteredTickets.filter(t => 
+            t.title.toLowerCase().includes(searchTerm) || 
+            t.place.toLowerCase().includes(searchTerm)
+        );
+    }
+
+    // 정렬
+    const sort = sortFilter.value;
+    filteredTickets.sort((a, b) => {
+        if (sort === 'open-date-asc') {
+            return new Date(a.open_date) - new Date(b.open_date);
+        } else if (sort === 'open-date-desc') {
+            return new Date(b.open_date) - new Date(a.open_date);
+        } else if (sort === 'title-asc') {
+            return a.title.localeCompare(b.title);
+        }
+        return 0;
     });
-    
-    // 키보드 단축키
-    document.addEventListener('keydown', function(e) {
-        // Ctrl + R: 새로고침 (관리자만)
-        if (e.ctrlKey && e.key === 'r' && isAdmin) {
-            e.preventDefault();
-            refreshData();
-        }
-        
-        // '/': 검색창 포커스
-        if (e.key === '/' && !e.ctrlKey && !e.altKey) {
-            e.preventDefault();
-            elements.searchInput.focus();
-        }
-    });
+
+    displayTickets(filteredTickets);
 }
 
-/**
- * 티켓 데이터 로드
- */
-async function loadTickets() {
-    if (isLoading) return;
-    
-    showLoading(true);
-    
-    try {
-        const response = await fetch('/api/tickets?limit=100');
-        const data = await response.json();
-        
-        currentTickets = data.tickets || [];
-        applyFilters(); // 필터와 정렬 모두 적용
-        
-    } catch (error) {
-        console.error('티켓 데이터 로드 실패:', error);
-        showError('티켓 데이터를 불러오는데 실패했습니다.');
-    } finally {
-        showLoading(false);
-    }
-}
-
-/**
- * 데이터 새로고침 (관리자 전용)
- */
-async function refreshData() {
-    if (isLoading || !isAdmin) return;
-    
-    const originalText = elements.refreshBtn.innerHTML;
-    elements.refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 새로고침 중...';
-    elements.refreshBtn.disabled = true;
-    
-    try {
-        // 관리자 권한으로 수동 새로고침 요청
-        const response = await fetch('/api/refresh?user=admin', {
-            method: 'POST'
-        });
-        
-        if (response.status === 403) {
-            showNotification('관리자 권한이 필요합니다.', 'error');
-            return;
-        }
-        
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            await loadTickets();
-            lastUpdateTime = new Date(data.last_update);
-            updateLastUpdateDisplay();
-            showNotification('데이터가 성공적으로 새로고침되었습니다.', 'success');
-            
-            // 자동 갱신 타이머 재시작
-            startAutoRefresh();
-        }
-    } catch (error) {
-        console.error('데이터 새로고침 실패:', error);
-        showNotification('데이터 새로고침에 실패했습니다.', 'error');
-    } finally {
-        elements.refreshBtn.innerHTML = originalText;
-        elements.refreshBtn.disabled = false;
-    }
-}
-
-/**
- * 자동 갱신 시작
- */
-function startAutoRefresh() {
-    // 기존 타이머 정리
-    if (autoRefreshTimer) {
-        clearInterval(autoRefreshTimer);
-    }
-    
-    // 새 타이머 시작 (1시간마다)
-    autoRefreshTimer = setInterval(async () => {
-        try {
-            await autoRefreshData();
-            console.log('자동 갱신 완료');
-        } catch (error) {
-            console.error('자동 갱신 실패:', error);
-        }
-    }, autoRefreshInterval);
-    
-    console.log(`자동 갱신 타이머 시작: ${autoRefreshInterval / 1000}초마다`);
-}
-
-/**
- * 자동 데이터 갱신 (백그라운드)
- */
-async function autoRefreshData() {
-    try {
-        // 업데이트 정보만 가져와서 데이터 영역만 갱신
-        const response = await fetch('/api/update-info');
-        const updateInfo = await response.json();
-        
-        // 새로운 데이터가 있는지 확인
-        if (updateInfo.last_update) {
-            const serverUpdateTime = new Date(updateInfo.last_update);
-            
-            // 서버의 업데이트 시간이 클라이언트보다 최신인 경우에만 갱신
-            if (!lastUpdateTime || serverUpdateTime > lastUpdateTime) {
-                await loadTickets();
-                lastUpdateTime = serverUpdateTime;
-                updateLastUpdateDisplay();
-                
-                // 조용한 알림 (사용자가 페이지를 보고 있을 때만)
-                if (document.visibilityState === 'visible') {
-                    showNotification('새로운 티켓 정보가 업데이트되었습니다.', 'info');
-                }
-            }
-        }
-    } catch (error) {
-        console.error('자동 갱신 실패:', error);
-    }
-}
-
-/**
- * 필터 적용
- */
-async function applyFilters() {
-    if (isLoading) return;
-    
-    showLoading(true);
-    
-    try {
-        const params = new URLSearchParams();
-        
-        const platform = elements.platformFilter.value;
-        const genre = elements.genreFilter.value;
-        const dateFilter = elements.dateFilter.value;
-        const search = elements.searchInput.value.trim();
-        
-        if (platform && platform !== '전체') params.append('platform', platform);
-        if (genre && genre !== '전체') params.append('genre', genre);
-        if (dateFilter && dateFilter !== '전체') params.append('date_filter', dateFilter);
-        if (search) params.append('search', search);
-        
-        params.append('limit', '100');
-        
-        const response = await fetch(`/api/tickets?${params.toString()}`);
-        const data = await response.json();
-        
-        filteredTickets = data.tickets || [];
-        applySorting(); // 필터 적용 후 정렬도 함께 적용
-        
-    } catch (error) {
-        console.error('필터 적용 실패:', error);
-        showError('필터 적용에 실패했습니다.');
-    } finally {
-        showLoading(false);
-    }
-}
-
-/**
- * 티켓 목록 렌더링
- */
-function renderTickets(tickets) {
-    if (!tickets || tickets.length === 0) {
-        showNoResults(true);
+function displayTickets(tickets) {
+    ticketsContainer.innerHTML = '';
+    if (tickets.length === 0) {
+        noResults.style.display = 'flex';
         return;
     }
-    
-    showNoResults(false);
-    
-    const container = elements.ticketsContainer;
-    container.innerHTML = '';
-    
+    noResults.style.display = 'none';
+
+    const fragment = document.createDocumentFragment();
     tickets.forEach(ticket => {
-        const ticketElement = createTicketElement(ticket);
-        container.appendChild(ticketElement);
+        const card = createTicketCard(ticket);
+        fragment.appendChild(card);
     });
+    ticketsContainer.appendChild(fragment);
 }
 
-/**
- * 티켓 카드 요소 생성
- */
-function createTicketElement(ticket) {
-    const div = document.createElement('div');
-    div.className = 'ticket-card';
-    
-    const openDate = ticket.open_date || '미정';
-    const dateClass = getDateClass(openDate);
-    const platform = ticket.source || '알 수 없음';
-    const title = ticket.title || '제목 없음';
-    const place = ticket.place || '장소 미정';
-    const link = ticket.link || '#';
-    
-    div.innerHTML = `
-        <div class="ticket-header">
-            <span class="platform-tag ${getPlatformClass(platform)}">${escapeHtml(platform)}</span>
-            <span class="ticket-date ${dateClass}">${escapeHtml(openDate)}</span>
+function createTicketCard(ticket) {
+    const card = document.createElement('div');
+    card.className = 'ticket-card';
+
+    const openDate = new Date(ticket.open_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil((openDate - today) / (1000 * 60 * 60 * 24));
+
+    let dDay = '';
+    let dDayClass = '';
+    if (diffDays === 0) {
+        dDay = 'D-DAY';
+        dDayClass = 'today';
+    } else if (diffDays > 0) {
+        dDay = `D-${diffDays}`;
+    }
+
+    // 장르 판단 함수
+    function getTicketGenre(title) {
+        const titleLower = title.toLowerCase();
+        if (['콘서트', 'concert', '공연'].some(keyword => titleLower.includes(keyword))) {
+            return '콘서트';
+        } else if (['뮤지컬', 'musical'].some(keyword => titleLower.includes(keyword))) {
+            return '뮤지컬';
+        } else if (['연극', 'play'].some(keyword => titleLower.includes(keyword))) {
+            return '연극';
+        } else if (['클래식', 'classic', '오케스트라'].some(keyword => titleLower.includes(keyword))) {
+            return '클래식';
+        }
+        return '기타';
+    }
+
+    const ticketGenre = getTicketGenre(ticket.title);
+    const openDateFormatted = ticket.open_date && ticket.open_date !== '미정' ? 
+        new Date(ticket.open_date).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : 
+        ticket.open_date || '미정';
+
+    card.innerHTML = `
+        <div class="ticket-image-container">
+            <img src="${ticket.image_url || 'https://via.placeholder.com/300x420.png?text=No+Image'}" alt="${ticket.title}" class="ticket-image" loading="lazy" onerror="this.onerror=null;this.src='https://via.placeholder.com/300x420.png?text=No+Image';">
+            <div class="platform-badge" style="background-color: ${platformColors[ticket.source] || 'var(--color-gray-600)'}">${ticket.source}</div>
+            ${dDay ? `<div class="d-day ${dDayClass}">${dDay}</div>` : ''}
         </div>
-        
-        <h3 class="ticket-title">${escapeHtml(title)}</h3>
-        
-        <div class="ticket-info">
-            <div class="ticket-info-item">
-                <i class="fas fa-map-marker-alt"></i>
-                <span>${escapeHtml(place)}</span>
-            </div>
-            <div class="ticket-info-item">
-                <i class="fas fa-clock"></i>
-                <span>수집 시간: ${formatCollectedTime(ticket.collected_at)}</span>
+        <div class="ticket-content">
+            <h3 class="ticket-title">${ticket.title}</h3>
+            <div class="ticket-info">
+                <p><i class="fas fa-palette"></i> <span>${ticketGenre}</span></p>
+                <p><i class="fas fa-map-marker-alt"></i> <span>${ticket.place || '장소 미정'}</span></p>
+                <p><i class="fas fa-calendar-alt"></i> <span>${ticket.perf_date || '공연일 미정'}</span></p>
+                <p><i class="fas fa-clock"></i> <span class="open-date">${openDateFormatted}</span></p>
             </div>
         </div>
-        
         <div class="ticket-actions">
-            <a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer" class="ticket-link">
-                <i class="fas fa-external-link-alt"></i>
-                티켓 보기
+             <a href="${ticket.url}" target="_blank" class="btn btn-primary">
+                <i class="fas fa-ticket-alt"></i> 예매하기
             </a>
         </div>
     `;
-    
-    // 클릭 이벤트 추가
-    div.addEventListener('click', function(e) {
-        if (e.target.tagName !== 'A') {
-            window.open(link, '_blank', 'noopener,noreferrer');
-        }
-    });
-    
-    return div;
+    return card;
 }
 
-/**
- * 날짜에 따른 CSS 클래스 반환
- */
-function getDateClass(dateStr) {
-    if (!dateStr || dateStr === '미정') return '';
-    
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    try {
-        // 다양한 날짜 형식 파싱
-        let ticketDate;
-        
-        if (dateStr.includes('.')) {
-            const parts = dateStr.split('.');
-            if (parts.length === 2) {
-                // MM.DD 형식
-                ticketDate = new Date(today.getFullYear(), parseInt(parts[0]) - 1, parseInt(parts[1]));
-            } else if (parts.length === 3) {
-                // YYYY.MM.DD 형식
-                ticketDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-            }
-        } else if (dateStr.includes('/')) {
-            const parts = dateStr.split('/');
-            if (parts.length === 2) {
-                // MM/DD 형식
-                ticketDate = new Date(today.getFullYear(), parseInt(parts[0]) - 1, parseInt(parts[1]));
-            }
-        }
-        
-        if (ticketDate) {
-            const todayStr = today.toDateString();
-            const tomorrowStr = tomorrow.toDateString();
-            const ticketStr = ticketDate.toDateString();
-            
-            if (ticketStr === todayStr) {
-                return 'urgent';
-            } else if (ticketStr === tomorrowStr) {
-                return 'soon';
-            }
-        }
-    } catch (error) {
-        console.warn('날짜 파싱 실패:', dateStr, error);
-    }
-    
-    return '';
-}
-
-/**
- * 수집 시간 포맷팅
- */
-function formatCollectedTime(timestamp) {
-    if (!timestamp) return '알 수 없음';
-    
-    try {
-        const date = new Date(timestamp);
-        return date.toLocaleString('ko-KR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    } catch (error) {
-        return '알 수 없음';
-    }
-}
-
-/**
- * HTML 이스케이프
- */
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-/**
- * 뷰 변경
- */
-function changeView(view) {
-    currentView = view;
-    
-    // 버튼 상태 업데이트
-    elements.viewBtns.forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.view === view);
-    });
-    
-    // 컨테이너 클래스 변경
-    const container = elements.ticketsContainer;
-    container.className = view === 'grid' ? 'tickets-grid' : 'tickets-list';
-}
-
-/**
- * 로딩 상태 표시
- */
-function showLoading(show) {
-    isLoading = show;
-    elements.loadingSpinner.style.display = show ? 'block' : 'none';
-    elements.ticketsContainer.style.display = show ? 'none' : '';
-    elements.noResults.style.display = 'none';
-}
-
-/**
- * 결과 없음 상태 표시
- */
-function showNoResults(show) {
-    elements.noResults.style.display = show ? 'block' : 'none';
-    elements.ticketsContainer.style.display = show ? 'none' : '';
-}
-
-/**
- * 에러 표시
- */
-function showError(message) {
-    elements.ticketsContainer.innerHTML = `
-        <div class="error-message">
-            <i class="fas fa-exclamation-triangle"></i>
-            <h3>오류가 발생했습니다</h3>
-            <p>${escapeHtml(message)}</p>
-            <button onclick="location.reload()" class="btn btn-primary">
-                <i class="fas fa-refresh"></i>
-                페이지 새로고침
-            </button>
-        </div>
-    `;
-}
-
-/**
- * 알림 표시
- */
-function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-        <div class="notification-content">
-            <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
-            <span>${escapeHtml(message)}</span>
-        </div>
-        <button class="notification-close">
-            <i class="fas fa-times"></i>
-        </button>
-    `;
-    
-    // 스타일 추가
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: ${type === 'success' ? 'var(--success-color)' : type === 'error' ? 'var(--danger-color)' : 'var(--primary-color)'};
-        color: white;
-        padding: 1rem 1.5rem;
-        border-radius: var(--border-radius);
-        box-shadow: var(--shadow-lg);
-        z-index: 1000;
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        max-width: 400px;
-        animation: slideIn 0.3s ease;
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // 닫기 버튼 이벤트
-    notification.querySelector('.notification-close').addEventListener('click', () => {
-        notification.remove();
-    });
-    
-    // 자동 제거
-    setTimeout(() => {
-        if (notification.parentNode) {
-            notification.remove();
-        }
-    }, 5000);
-}
-
-/**
- * 마지막 업데이트 시간 표시 갱신
- */
-function updateLastUpdateDisplay() {
-    if (!lastUpdateTime) return;
-    
-    const timeString = lastUpdateTime.toLocaleString('ko-KR', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-    
-    if (elements.lastUpdate) {
-        elements.lastUpdate.textContent = timeString;
-    }
-    if (elements.footerLastUpdate) {
-        elements.footerLastUpdate.textContent = timeString;
-    }
-}
-
-/**
- * 페이지 언로드 시 타이머 정리
- */
-window.addEventListener('beforeunload', function() {
-    if (autoRefreshTimer) {
-        clearInterval(autoRefreshTimer);
-    }
-});
-
-// CSS 애니메이션 추가
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideIn {
-        from {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-    
-    .notification {
-        animation: slideIn 0.3s ease;
-    }
-    
-    .notification-content {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        flex: 1;
-    }
-    
-    .notification-close {
-        background: none;
-        border: none;
-        color: white;
-        cursor: pointer;
-        padding: 0.25rem;
-        border-radius: 50%;
-        transition: background-color 0.2s ease;
-    }
-    
-    .notification-close:hover {
-        background-color: rgba(255, 255, 255, 0.2);
-    }
-    
-    .error-message {
-        text-align: center;
-        padding: 3rem;
-        color: var(--text-secondary);
-    }
-    
-    .error-message i {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-        color: var(--danger-color);
-    }
-    
-    .error-message h3 {
-        font-size: 1.25rem;
-        margin-bottom: 0.5rem;
-        color: var(--text-primary);
-    }
-    
-    .error-message p {
-        margin-bottom: 1.5rem;
-    }
-`;
-document.head.appendChild(style);
-
-/**
- * 정렬 적용
- */
-function applySorting() {
-    if (filteredTickets.length === 0) return;
-    
-    const sortValue = elements.sortFilter.value;
-    const sortedTickets = [...filteredTickets];
-    
-    switch (sortValue) {
-        case 'open_date_desc':
-            sortedTickets.sort((a, b) => {
-                const dateA = parseTicketDate(a.open_date);
-                const dateB = parseTicketDate(b.open_date);
-                return dateB - dateA;
-            });
-            break;
-            
-        case 'open_date_asc':
-            sortedTickets.sort((a, b) => {
-                const dateA = parseTicketDate(a.open_date);
-                const dateB = parseTicketDate(b.open_date);
-                return dateA - dateB;
-            });
-            break;
-            
-        case 'performance_date_asc':
-            sortedTickets.sort((a, b) => {
-                const dateA = parseTicketDate(a.performance_date || a.open_date);
-                const dateB = parseTicketDate(b.performance_date || b.open_date);
-                return dateA - dateB;
-            });
-            break;
-            
-        case 'title_asc':
-            sortedTickets.sort((a, b) => {
-                const titleA = (a.title || '').toLowerCase();
-                const titleB = (b.title || '').toLowerCase();
-                return titleA.localeCompare(titleB, 'ko');
-            });
-            break;
-            
-        case 'popularity_desc':
-            // 인기순은 수집 시간이 최근인 것을 우선으로 정렬
-            sortedTickets.sort((a, b) => {
-                const timeA = new Date(a.collected_at || 0);
-                const timeB = new Date(b.collected_at || 0);
-                return timeB - timeA;
-            });
-            break;
-    }
-    
-    renderTickets(sortedTickets);
-}
-
-/**
- * 티켓 날짜 파싱
- */
-function parseTicketDate(dateStr) {
-    if (!dateStr || dateStr === '미정') {
-        return new Date(0); // 미정인 경우 가장 오래된 날짜로 처리
-    }
-    
-    const today = new Date();
-    
-    try {
-        if (dateStr.includes('.')) {
-            const parts = dateStr.split('.');
-            if (parts.length === 2) {
-                // MM.DD 형식
-                return new Date(today.getFullYear(), parseInt(parts[0]) - 1, parseInt(parts[1]));
-            } else if (parts.length === 3) {
-                // YYYY.MM.DD 형식
-                return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-            }
-        } else if (dateStr.includes('/')) {
-            const parts = dateStr.split('/');
-            if (parts.length === 2) {
-                // MM/DD 형식
-                return new Date(today.getFullYear(), parseInt(parts[0]) - 1, parseInt(parts[1]));
-            }
-        }
-        
-        // ISO 형식 시도
-        const parsed = new Date(dateStr);
-        if (!isNaN(parsed.getTime())) {
-            return parsed;
-        }
-    } catch (error) {
-        console.warn('날짜 파싱 실패:', dateStr, error);
-    }
-    
-    return new Date(0);
-}
-
-/**
- * 플랫폼별 CSS 클래스 반환
- */
-function getPlatformClass(platform) {
-    if (!platform) return 'default';
-    
-    const platformLower = platform.toLowerCase();
-    
-    if (platformLower.includes('interpark') || platformLower.includes('인터파크')) {
-        return 'interpark';
-    } else if (platformLower.includes('melon') || platformLower.includes('멜론')) {
-        return 'melon';
-    } else if (platformLower.includes('yes24')) {
-        return 'yes24';
+// 뷰 전환
+function setView(view) {
+    if (view === 'grid') {
+        ticketsContainer.classList.remove('list-view');
+        ticketsContainer.classList.add('grid-view');
+        gridViewBtn.classList.add('active');
+        listViewBtn.classList.remove('active');
     } else {
-        return 'default';
+        ticketsContainer.classList.remove('grid-view');
+        ticketsContainer.classList.add('list-view');
+        listViewBtn.classList.add('active');
+        gridViewBtn.classList.remove('active');
     }
+}
+
+// 유틸리티 함수
+function showLoading() {
+    loadingSpinner.style.display = 'flex';
+    ticketsContainer.style.display = 'none';
+    noResults.style.display = 'none';
+}
+
+function hideLoading() {
+    loadingSpinner.style.display = 'none';
+    ticketsContainer.style.display = '';
+}
+
+function debounce(func, delay) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), delay);
+    };
+}
+
+function getFormattedDate(dayOffset) {
+    const date = new Date();
+    date.setDate(date.getDate() + dayOffset);
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function updateLastUpdateTime(timeStr) {
+    if (!timeStr) return;
+    const date = new Date(timeStr);
+    const formattedTime = date.toLocaleString('ko-KR');
+    lastUpdateSpan.textContent = formattedTime;
+    document.getElementById('footer-last-update').textContent = formattedTime;
+}
+
+// 자동 새로고침
+let autoRefreshInterval;
+function startAutoRefresh() {
+    let remaining = 300;
+    autoRefreshInfo.textContent = `다음 업데이트까지 5분 00초`;
+    autoRefreshInterval = setInterval(() => {
+        remaining--;
+        const minutes = Math.floor(remaining / 60);
+        const seconds = remaining % 60;
+        autoRefreshInfo.textContent = `다음 업데이트까지 ${minutes}분 ${seconds.toString().padStart(2, '0')}초`;
+        if (remaining <= 0) {
+            refreshData();
+            remaining = 300;
+        }
+    }, 1000);
+}
+
+async function refreshData() {
+    clearInterval(autoRefreshInterval);
+    const refreshIcon = refreshBtn.querySelector('i');
+    refreshIcon.classList.add('fa-spin');
+    refreshBtn.disabled = true;
+    
+    await loadTicketData();
+    
+    startAutoRefresh();
+    refreshIcon.classList.remove('fa-spin');
+    refreshBtn.disabled = false;
 }

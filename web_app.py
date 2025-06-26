@@ -10,6 +10,8 @@
 import os
 import json
 import logging
+import re
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from pathlib import Path
@@ -31,11 +33,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# FastAPI 앱 초기화
+# FastAPI 앱 초기화 및 lifespan 설정
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    애플리케이션 시작 시 데이터 로드 및 정리 작업을 수행하는 lifespan 이벤트 핸들러
+    """
+    logger.info("티켓 오픈 모니터 웹 애플리케이션 시작")
+    refresh_ticket_data()
+    yield
+    logger.info("애플리케이션 종료")
+
 app = FastAPI(
     title="티켓 오픈 모니터",
     description="실시간 공연 티켓 오픈 알림 시스템",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # 정적 파일 및 템플릿 설정
@@ -155,31 +168,25 @@ def refresh_ticket_data():
         logger.error(f"티켓 데이터 로드 중 오류: {e}")
         ticket_cache = []
 
-@app.on_event("startup")
-async def startup_event():
-    """
-    애플리케이션 시작 시 초기화 작업을 수행합니다.
-    """
-    logger.info("티켓 오픈 모니터 웹 애플리케이션 시작")
-    refresh_ticket_data()
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, user: Optional[str] = Query(None, description="사용자 ID")):
     """
     메인 페이지를 렌더링합니다.
     """
-    stats = get_ticket_stats(ticket_cache)
+    all_tickets = load_tickets()
+    stats = get_ticket_stats(all_tickets)
     
     # 사용자 권한 확인
     is_admin = user in ADMIN_USERS if user else False
     
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "tickets": ticket_cache[:50],  # 최대 50개만 표시
+        "tickets": all_tickets[:50],  # 최대 50개만 표시
         "stats": stats,
         "last_update": last_update_time.strftime("%Y. %m. %d. %p %I:%M") if last_update_time else "업데이트 없음",
         "last_update_iso": last_update_time.isoformat() if last_update_time else None,
-        "total_tickets": len(ticket_cache),
+        "total_tickets": len(all_tickets),
         "is_admin": is_admin,
         "auto_refresh_interval": AUTO_REFRESH_INTERVAL * 1000  # JavaScript용 밀리초 단위
     })
@@ -189,13 +196,15 @@ async def get_tickets(
     platform: Optional[str] = Query(None, description="플랫폼 필터"),
     genre: Optional[str] = Query(None, description="장르 필터"),
     date_filter: Optional[str] = Query(None, description="날짜 필터 (today, tomorrow, week)"),
+    sort: Optional[str] = Query("open_date_asc", description="정렬 순서"),
     search: Optional[str] = Query(None, description="검색어"),
     limit: int = Query(50, description="최대 결과 수")
 ):
     """
     필터링된 티켓 목록을 JSON으로 반환합니다.
     """
-    filtered_tickets = ticket_cache.copy()
+    all_tickets = load_tickets()
+    filtered_tickets = all_tickets.copy()
     
     # 플랫폼 필터
     if platform and platform != "전체":
@@ -218,30 +227,22 @@ async def get_tickets(
             ]
     
     # 날짜 필터
-    if date_filter:
+    if date_filter and date_filter != "all":
         today = datetime.now().date()
-        
-        if date_filter == "today":
-            target_date = today
-        elif date_filter == "tomorrow":
-            target_date = today + timedelta(days=1)
-        elif date_filter == "week":
-            # 이번 주 필터링은 별도 로직 필요
-            week_end = today + timedelta(days=7)
-            filtered_tickets = [
-                t for t in filtered_tickets
-                if _parse_ticket_date(t.get('open_date', '')) and
-                   today <= _parse_ticket_date(t.get('open_date', '')) <= week_end
-            ]
-        else:
-            target_date = None
-        
-        if date_filter in ["today", "tomorrow"] and target_date:
-            filtered_tickets = [
-                t for t in filtered_tickets
-                if _parse_ticket_date(t.get('open_date', '')) == target_date
-            ]
-    
+        date_filtered_tickets = []
+        for t in filtered_tickets:
+            parsed_date = _parse_ticket_date_improved(t.get('open_date', ''))
+            if not parsed_date:
+                continue
+
+            if date_filter == "today" and parsed_date == today:
+                date_filtered_tickets.append(t)
+            elif date_filter == "tomorrow" and parsed_date == today + timedelta(days=1):
+                date_filtered_tickets.append(t)
+            elif date_filter == "week" and today <= parsed_date <= today + timedelta(days=6):
+                date_filtered_tickets.append(t)
+        filtered_tickets = date_filtered_tickets
+
     # 검색어 필터
     if search:
         search_lower = search.lower()
@@ -251,13 +252,27 @@ async def get_tickets(
                search_lower in t.get('place', '').lower()
         ]
     
+    # 정렬
+    if sort == "open_date_desc":
+        filtered_tickets.sort(key=lambda t: _parse_ticket_date_improved(t.get('open_date', '')) or datetime.min.date(), reverse=True)
+    elif sort == "title_asc":
+        filtered_tickets.sort(key=lambda t: t.get('title', ''))
+    else: # 기본 정렬: open_date_asc
+        filtered_tickets.sort(key=lambda t: _parse_ticket_date_improved(t.get('open_date', '')) or datetime.max.date())
+
     # 결과 제한
-    filtered_tickets = filtered_tickets[:limit]
-    
+    total_count = len(filtered_tickets)
+    limited_tickets = filtered_tickets[:limit]
+
+    config = load_config()
+    platform_colors = config.get("platform_colors", {})
+
     return JSONResponse({
-        "tickets": filtered_tickets,
-        "total": len(filtered_tickets),
-        "stats": get_ticket_stats(filtered_tickets)
+        "tickets": limited_tickets,
+        "total": total_count,
+        "stats": get_ticket_stats(ticket_cache),  # 전체 데이터 기준 통계
+        "platform_colors": platform_colors,
+        "last_update": last_update_time.isoformat() if last_update_time else None
     })
 
 @app.post("/api/refresh")
@@ -304,88 +319,74 @@ async def get_update_info():
         "next_auto_refresh": (last_update_time + timedelta(seconds=AUTO_REFRESH_INTERVAL)).isoformat() if last_update_time else None
     })
 
-def _parse_ticket_date(date_str: str) -> Optional[datetime.date]:
-    """
-    티켓 날짜 문자열을 파싱합니다.
-    
-    Args:
-        date_str: 날짜 문자열
-        
-    Returns:
-        파싱된 날짜 객체 또는 None
-    """
-    if not date_str:
-        return None
-    
-    for date_format in ['%Y.%m.%d', '%Y-%m-%d', '%m/%d', '%m.%d']:
-        try:
-            if date_format in ['%m/%d', '%m.%d']:
-                # 월/일 형식인 경우 현재 연도 추가
-                date_str_with_year = f"{datetime.now().year}.{date_str.replace('/', '.').replace('.', '.')}"
-                return datetime.strptime(date_str_with_year, '%Y.%m.%d').date()
-            else:
-                return datetime.strptime(date_str, date_format).date()
-        except ValueError:
-            continue
-    
-    return None
+
 
 def _parse_ticket_date_improved(date_str: str) -> Optional[datetime.date]:
     """
-    개선된 티켓 날짜 문자열 파싱 함수.
-    더 다양한 형식을 지원하고 로깅을 추가합니다.
-    
+    정규표현식을 사용하여 다양한 형식의 날짜 문자열을 파싱합니다.
+    지원 형식:
+    - 'YYYY-MM-DD(요일) HH:MM' (예: '2025-06-24(화) 18:00')
+    - 'MM.DD(요일) HH:MM' (예: '06.25(수) 13:00')
+    - '[오픈]YY.MM.DD(요일)' (예: '[오픈]25.06.26(목)')
+    - 'YYYY.MM.DD' 또는 'YYYY-MM-DD'
+    - '오픈일정 보기 >'와 같은 문자열은 None을 반환합니다.
+
     Args:
         date_str: 날짜 문자열
-        
+
     Returns:
-        파싱된 날짜 객체 또는 None
+        파싱된 date 객체 또는 실패 시 None
     """
-    if not date_str or date_str.strip() == '' or date_str == '미정':
+    if not date_str or not isinstance(date_str, str):
         return None
-    
-    # 공백 제거 및 정규화
+
     date_str = date_str.strip()
-    
-    # 다양한 날짜 형식 시도
-    date_formats = [
-        '%Y.%m.%d',    # 2024.01.15
-        '%Y-%m-%d',    # 2024-01-15
-        '%Y/%m/%d',    # 2024/01/15
-        '%m.%d',       # 01.15
-        '%m/%d',       # 01/15
-        '%m-%d',       # 01-15
-        '%Y.%m.%d.',   # 2024.01.15. (끝에 점)
-        '%Y.%m.%d (%a)', # 2024.01.15 (월)
-    ]
-    
-    current_year = datetime.now().year
-    
-    for date_format in date_formats:
+    if date_str in ['미정', '오픈일정 보기 >']:
+        return None
+
+    now = datetime.now()
+
+    # 형식 1: 'YYYY-MM-DD(요일) HH:MM' 또는 'YYYY.MM.DD(요일) HH:MM'
+    match = re.search(r'(\d{4})[-.](\d{2})[-.](\d{2})\(.\)\s*(\d{2}):(\d{2})', date_str)
+    if match:
         try:
-            if date_format in ['%m.%d', '%m/%d', '%m-%d']:
-                # 월/일 형식인 경우 현재 연도 추가
-                normalized_date = date_str.replace('/', '.').replace('-', '.')
-                date_str_with_year = f"{current_year}.{normalized_date}"
-                parsed_date = datetime.strptime(date_str_with_year, '%Y.%m.%d').date()
-            else:
-                # 괄호 안의 요일 정보 제거
-                clean_date_str = date_str.split('(')[0].strip().rstrip('.')
-                parsed_date = datetime.strptime(clean_date_str, date_format.split('(')[0].strip().rstrip('.'))
-                if isinstance(parsed_date, datetime):
-                    parsed_date = parsed_date.date()
-            
-            # 과거 날짜인 경우 다음 해로 가정 (월/일 형식의 경우)
-            if date_format in ['%m.%d', '%m/%d', '%m-%d'] and parsed_date < datetime.now().date():
-                date_str_with_year = f"{current_year + 1}.{normalized_date}"
-                parsed_date = datetime.strptime(date_str_with_year, '%Y.%m.%d').date()
-            
-            return parsed_date
-            
+            year, month, day, hour, minute = map(int, match.groups())
+            return datetime(year, month, day, hour, minute).date()
         except ValueError:
-            continue
-    
-    # 모든 형식 실패 시 로깅
+            pass
+
+    # 형식 2: 'MM.DD(요일) HH:MM' (예: '06.25(수) 13:00')
+    match = re.search(r'(\d{2})\.(\d{2})\(.\)\s*(\d{2}):(\d{2})', date_str)
+    if match:
+        try:
+            month, day, hour, minute = map(int, match.groups())
+            # 올해 날짜로 가정
+            parsed_date = datetime(now.year, month, day, hour, minute)
+            # 파싱된 날짜가 이미 지났다면 내년으로 간주
+            if parsed_date < now:
+                parsed_date = parsed_date.replace(year=now.year + 1)
+            return parsed_date.date()
+        except ValueError:
+            pass # 다음 형식으로 넘어감
+
+    # 형식 3: '[오픈]YY.MM.DD(요일)' (예: '[오픈]25.06.26(목)')
+    match = re.search(r'\[오픈\]\s*(\d{2})\.(\d{2})\.(\d{2})', date_str)
+    if match:
+        try:
+            year, month, day = map(int, match.groups())
+            return datetime(2000 + year, month, day).date()
+        except ValueError:
+            pass
+
+    # 형식 4: 'YYYY.MM.DD' 또는 'YYYY-MM-DD' (시간 정보가 없을 때)
+    try:
+        # 요일 정보 및 기타 텍스트 제거
+        clean_date_str = re.sub(r'\s*\(.+\)', '', date_str).strip().rstrip('.')
+        clean_date_str = clean_date_str.replace('-', '.') # 구분자 통일
+        return datetime.strptime(clean_date_str, '%Y.%m.%d').date()
+    except ValueError:
+        pass
+
     logger.warning(f"날짜 파싱 실패: '{date_str}'")
     return None
 

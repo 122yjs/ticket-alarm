@@ -129,6 +129,10 @@ def update_tickets(new_tickets):
     Returns:
         tuple: (업데이트된 전체 티켓 목록, 새로 추가된 티켓 목록)
     """
+    if not new_tickets:
+        logging.warning("새로 수집된 티켓이 없어 업데이트를 건너뜁니다.")
+        return load_tickets(), []
+
     existing_tickets = load_tickets()
     
     # 티켓 ID를 키로 하는 딕셔너리 생성 (중복 제거를 위함)
