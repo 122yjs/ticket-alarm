@@ -1,807 +1,232 @@
-/* 1. 기본 및 다크모드 스타일 설정 */
-:root {
-    --background: 0 0% 98%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 262.1 83.3% 57.8%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 220 14.3% 95.9%;
-    --secondary-foreground: 220.9 39.3% 11%;
-    --muted: 220 14.3% 95.9%;
-    --muted-foreground: 220 8.9% 46.1%;
-    --accent: 220 14.3% 95.9%;
-    --accent-foreground: 220.9 39.3% 11%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 262.1 83.3% 57.8%;
-    --radius: 0.75rem;
-    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-}
-
-.dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 262.1 83.3% 67.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 262.1 83.3% 67.8%;
-    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
-}
-
-/* 2. 기본 스타일 리셋 및 레이아웃 */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    border: 0 solid hsl(var(--border));
-}
-
+/* General Body and Layout */
 body {
-    font-family: 'Inter', 'Noto Sans KR', sans-serif;
-    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(220 13% 95%) 100%);
-    color: hsl(var(--foreground));
+    font-family: 'Noto Sans KR', sans-serif;
+    background-color: #f4f7f6;
+    color: #333;
+    margin: 0;
     line-height: 1.6;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-}
-
-.dark body {
-    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(217.2 32.6% 12%) 100%);
-}
-
-.dark .header {
-    background: rgba(34, 34, 47, 0.95);
 }
 
 .container {
-    max-width: 1280px;
+    max-width: 1200px;
     margin: 0 auto;
-    padding: 0 1.5rem;
+    padding: 20px;
 }
 
-/* 3. 헤더 스타일 */
-.header {
-    background: rgba(255, 255, 255, 0.95);
-    border-bottom: 1px solid hsl(var(--border));
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    box-shadow: var(--shadow);
+header {
+    text-align: center;
+    padding: 20px 0;
+    border-bottom: 2px solid #e0e0e0;
+    margin-bottom: 30px;
 }
 
-.header-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    height: 4rem;
+header h1 {
+    font-size: 2.5em;
+    color: #2c3e50;
 }
 
-.logo {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
+footer {
+    text-align: center;
+    margin-top: 40px;
+    padding: 20px 0;
+    border-top: 2px solid #e0e0e0;
+    font-size: 0.9em;
+    color: #7f8c8d;
 }
 
-.logo i {
-    font-size: 1.75rem;
-    color: hsl(var(--primary));
-}
-
-.logo h1 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    letter-spacing: -0.025em;
-}
-
-.header-actions {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.last-update, .auto-refresh-info {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    color: hsl(var(--muted-foreground));
-}
-
-.admin-info {
-    color: hsl(var(--accent-foreground));
-    font-weight: 500;
-    font-size: 0.8rem;
-    margin-top: 0.25rem;
-    background-color: hsl(var(--accent));
-    padding: 0.2rem 0.4rem;
-    border-radius: 0.25rem;
-}
-
-/* 4. 버튼 스타일 */
-.btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    border-radius: var(--radius);
-    font-size: 0.875rem;
-    font-weight: 500;
+a {
     text-decoration: none;
-    border: none;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    white-space: nowrap;
-    box-shadow: var(--shadow);
-    position: relative;
-    overflow: hidden;
+    color: inherit;
 }
 
-.btn-primary {
-    background: linear-gradient(135deg, hsl(var(--primary)), hsl(262.1 83.3% 67.8%));
-    color: hsl(var(--primary-foreground));
-    border: 1px solid transparent;
+/* Ticket List (KOPIS) */
+.ticket-list {
+    margin-top: 30px;
 }
 
-.btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
+.ticket-list h2 {
+    font-size: 1.8em;
+    color: #34495e;
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
 }
 
-.btn-primary::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-    transition: left 0.5s;
-}
-
-.btn-primary:hover::before {
-    left: 100%;
-}
-
-.btn:active {
-    transform: scale(0.98);
-}
-
-/* 5. 메인 컨텐츠 */
-.main {
-    flex: 1;
-    padding: 2.5rem 0;
-}
-
-/* 6. 통계 섹션 */
-.stats-section {
-    margin-bottom: 2.5rem;
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 2rem;
-}
-
-.stat-card {
-    background: hsl(var(--card));
-    border: 1px solid hsl(var(--border));
-    border-radius: var(--radius);
-    padding: 2rem;
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-    transition: all 0.3s ease-in-out;
-    box-shadow: var(--shadow);
-    position: relative;
-    overflow: hidden;
-}
-
-.stat-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-lg);
-    border-color: hsl(var(--primary));
-}
-
-.stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, hsl(var(--primary)), hsl(262.1 83.3% 67.8%));
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.stat-card:hover::before {
-    opacity: 1;
-}
-
-.stat-icon {
-    width: 3rem;
-    height: 3rem;
-    border-radius: var(--radius);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-    font-size: 1.5rem;
-}
-
-.stat-icon.today {
-    background-color: hsl(142.1 76.2% 36.3%);
-}
-.dark .stat-icon.today {
-    background-color: hsl(142.1 70.6% 45.3%);
-}
-
-.stat-icon.tomorrow {
-    background-color: hsl(38.1 91.6% 50.2%);
-}
-.dark .stat-icon.tomorrow {
-    background-color: hsl(38.1 91.6% 58.2%);
-}
-
-.stat-icon.week {
-    background-color: hsl(0 84.2% 60.2%);
-}
-.dark .stat-icon.week {
-    background-color: hsl(0 72.2% 50.6%);
-}
-
-.stat-content h3 {
-    font-size: 0.875rem;
-    color: hsl(var(--muted-foreground));
-    margin-bottom: 0.25rem;
-    font-weight: 500;
-}
-
-.stat-content p.stat-number {
-    font-size: 2rem;
-    font-weight: 700;
-    color: hsl(var(--foreground));
-}
-
-/* 7. 필터 섹션 */
-.filter-section {
-    background: hsl(var(--card));
-    padding: 2rem;
-    border-radius: var(--radius);
-    margin-bottom: 3rem;
-    border: 1px solid hsl(var(--border));
-    box-shadow: var(--shadow);
-}
-
-.filter-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 2rem;
-}
-
-.filter-group {
+.tickets {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 20px;
 }
 
-.filter-group label {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: hsl(var(--muted-foreground));
-}
-
-.filter-select, .search-input {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    border: 1px solid hsl(var(--input));
-    border-radius: var(--radius);
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
-    font-size: 0.875rem;
-    transition: all 0.2s ease;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23666' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
-    background-repeat: no-repeat;
-    background-position: right 0.75rem center;
-    background-size: 1em;
-    box-shadow: var(--shadow);
-}
-
-.dark .filter-select, .dark .search-input {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
-}
-
-.filter-select:focus, .search-input:focus {
-    outline: none;
-    border-color: hsl(var(--primary));
-    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
-    transform: translateY(-1px);
-}
-
-.search-container {
-    position: relative;
-}
-
-.search-input {
-    padding-left: 2.5rem;
-}
-
-.search-icon {
-    position: absolute;
-    top: 50%;
-    left: 0.75rem;
-    transform: translateY(-50%);
-    color: hsl(var(--muted-foreground));
-}
-
-/* 8. 티켓 목록 */
-
-.section-header {
+.ticket-item {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-}
-
-.section-header h2 {
-    font-size: 1.5rem;
-    font-weight: 600;
-}
-
-.view-options {
-    display: flex;
-    gap: 0.25rem;
-    background: hsl(var(--muted));
-    padding: 0.375rem;
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-}
-
-.view-btn {
-    padding: 0.75rem;
-    border: none;
-    background: transparent;
-    color: hsl(var(--muted-foreground));
-    border-radius: calc(var(--radius) - 0.25rem);
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-}
-
-
-
-.view-btn.active {
-    background: hsl(var(--background));
-    color: hsl(var(--primary));
-    box-shadow: var(--shadow);
-    transform: scale(1.05);
-}
-
-.view-btn:hover:not(.active) {
-    background-color: hsl(var(--secondary));
-}
-
-/* 9. 티켓 그리드 & 카드 */
-.tickets-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 2rem;
-    margin-bottom: 2rem;
-}
-
-.ticket-card {
-    background: hsl(var(--card));
-    border: 1px solid hsl(var(--border));
-    border-radius: var(--radius);
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
     overflow: hidden;
-    transition: all 0.3s ease-in-out;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    box-shadow: var(--shadow);
-    position: relative;
+    transition: box-shadow 0.3s ease;
+    gap: 20px;
+    padding: 15px;
 }
 
-.ticket-card:hover {
-    transform: translateY(-6px);
-    box-shadow: var(--shadow-lg);
-    border-color: hsl(var(--primary) / 0.5);
+.ticket-item:hover {
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
 
-.ticket-card::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, transparent 0%, hsl(var(--primary) / 0.02) 100%);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    pointer-events: none;
+.ticket-item .poster {
+    flex-shrink: 0;
+    width: 120px;
+    height: 170px;
 }
 
-.ticket-card:hover::after {
-    opacity: 1;
-}
-
-.ticket-image-container {
-    position: relative;
-    aspect-ratio: 16 / 9;
-    background-color: hsl(var(--secondary));
-}
-
-.ticket-image {
+.ticket-item .poster img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    border-radius: 4px;
 }
 
-.platform-badge {
-    position: absolute;
-    top: 0.75rem;
-    left: 0.75rem;
-    padding: 0.25rem 0.6rem;
-    border-radius: var(--radius);
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: white;
-    backdrop-filter: blur(4px);
-    background-color: rgba(0,0,0,0.4);
-}
-
-.ticket-content {
-    padding: 1.5rem;
+.ticket-item .info {
     display: flex;
     flex-direction: column;
-    flex-grow: 1;
-    position: relative;
-    z-index: 1;
+    justify-content: center;
 }
 
-.ticket-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin-bottom: 0.75rem;
-    line-height: 1.4;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-height: 2.8em; /* 1.4em * 2 lines */
-    color: hsl(var(--foreground));
+.ticket-item .title {
+    font-size: 1.3em;
+    font-weight: 700;
+    margin: 0 0 10px 0;
+    color: #2c3e50;
 }
 
-.ticket-info {
-    margin-top: auto;
-    padding-top: 0.75rem;
-    font-size: 0.875rem;
-    color: hsl(var(--muted-foreground));
+.ticket-item .period,
+.ticket-item .facility {
+    font-size: 1em;
+    color: #555;
+    margin: 4px 0;
 }
 
-.ticket-info p {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-}
-
-.ticket-info i {
-    width: 1em;
-    text-align: center;
-}
-
-.open-date {
+.ticket-item .period strong,
+.ticket-item .facility strong {
     font-weight: 500;
-    color: hsl(var(--destructive));
+    color: #333;
+    margin-right: 8px;
 }
 
-.ticket-actions {
-    margin-top: 1rem;
-    border-top: 1px solid hsl(var(--border));
-    padding: 1rem;
+/* Detail Page (detail.html) */
+.detail-header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 30px;
 }
 
-.ticket-actions .btn {
+.back-link {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #3498db;
+    transition: color 0.3s;
+}
+
+.back-link:hover {
+    color: #2980b9;
+}
+
+.detail-main {
+    background-color: #ffffff;
+    padding: 40px;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.detail-content {
+    display: flex;
+    gap: 40px;
+}
+
+.poster-container {
+    flex: 0 0 300px;
+}
+
+.detail-poster {
     width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }
 
-/* 10. 티켓 리스트 뷰 */
-.tickets-list .ticket-card {
-    flex-direction: row;
-    align-items: center;
-    gap: 1.5rem;
-    padding: 1rem;
+.info-container {
+    flex: 1;
 }
 
-.tickets-list .ticket-image-container {
-    width: 150px;
-    height: 100px;
-    flex-shrink: 0;
-    border-radius: var(--radius);
-    overflow: hidden;
+.info-item {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 15px;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #ecf0f1;
+    align-items: start;
 }
 
-.tickets-list .ticket-content {
-    padding: 0;
-    flex-grow: 1;
+.info-item:last-child {
+    border-bottom: none;
 }
 
-.tickets-list .ticket-title {
-    min-height: auto;
-    margin-bottom: 0.75rem;
+.info-item strong {
+    font-weight: 700;
+    color: #2c3e50;
 }
 
-.tickets-list .ticket-info {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    margin-top: 0;
-    padding-top: 0;
+.info-item span, .info-item p {
+    margin: 0;
+    color: #555;
+    line-height: 1.7;
 }
 
-.tickets-list .ticket-info p {
-    margin-bottom: 0;
+.info-item-full {
+    grid-template-columns: 1fr;
 }
 
-.tickets-list .ticket-actions {
-    margin-top: 0;
-    padding: 0;
-    border-top: none;
-    width: 150px;
-    flex-shrink: 0;
-}
-
-/* 11. 로딩 및 결과 없음 */
-.loading-spinner, .no-results {
-    text-align: center;
-    padding: 4rem 0;
-    color: hsl(var(--muted-foreground));
-    background: hsl(var(--card));
-    border-radius: var(--radius);
-    margin: 2rem 0;
-    box-shadow: var(--shadow);
-}
-
-.loading-spinner i {
-    animation: spin 1s linear infinite;
-    margin-right: 0.75rem;
-    font-size: 1.5rem;
-    color: hsl(var(--primary));
-}
-
-.no-results i {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    display: block;
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-.no-results h3 {
-    font-size: 1.25rem;
-    margin-bottom: 0.5rem;
-    color: hsl(var(--foreground));
-}
-
-/* 12. 푸터 */
-.footer {
-    background: hsl(var(--secondary));
-    border-top: 1px solid hsl(var(--border));
-    padding: 2.5rem 0;
-    margin-top: 3rem;
-    color: hsl(var(--muted-foreground));
-    font-size: 0.875rem;
-}
-
-.footer-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.footer-links {
-    display: flex;
-    gap: 1.5rem;
-}
-
-.footer-link {
-    color: hsl(var(--muted-foreground));
-    text-decoration: none;
-    transition: color 0.2s;
-}
-
-.footer-link:hover {
-    color: hsl(var(--foreground));
-}
-
-/* 플랫폼별 태그 스타일 */
-.platform-tag {
-    display: inline-block;
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: white;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+.info-item-full strong {
     margin-bottom: 8px;
 }
 
-.platform-tag.interpark {
-    background-color: #8A2BE2; /* 보라색 */
+.synopsis {
+    white-space: pre-wrap; /* Preserve line breaks in synopsis */
 }
 
-.platform-tag.melon {
-    background-color: #7CB342; /* 부드러운 올리브 그린 - 채도를 낮춘 세련된 색상 */
-}
-
-.platform-tag.yes24 {
-    background-color: #4169E1; /* 파란색 */
-}
-
-.platform-tag.default {
-    background-color: #6c757d; /* 기본 회색 */
-}
-
-/* 13. 반응형 디자인 */
-@media (max-width: 1024px) {
-    .filter-container {
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    }
-}
-
+/* Responsive Design */
 @media (max-width: 768px) {
-    .container {
-        padding: 0 0.75rem;
-    }
-
-    .header-content {
+    .detail-content {
         flex-direction: column;
-        gap: 1rem;
-        height: auto;
-        padding: 1rem 0;
-        text-align: center;
     }
-
-    .main {
-        padding: 1.5rem 0;
+    .poster-container {
+        flex: 0 0 auto;
+        width: 50%;
+        margin: 0 auto 30px;
     }
-
-    .stats-grid {
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    }
-
-    .filter-container {
-        grid-template-columns: 1fr;
-    }
-
-    .section-header {
+    .detail-header {
         flex-direction: column;
-        gap: 1rem;
         align-items: flex-start;
-    }
-
-    .tickets-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .tickets-list .ticket-card {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .tickets-list .ticket-image-container {
-        width: 100%;
-        aspect-ratio: 16 / 9;
-        height: auto;
-    }
-
-    .tickets-list .ticket-actions {
-        width: 100%;
-        margin-top: 1rem;
-    }
-
-    .footer-content {
-        flex-direction: column;
-        gap: 1rem;
-        text-align: center;
     }
 }
 
 @media (max-width: 480px) {
-    .main {
-        padding: 1rem 0;
+    .container {
+        padding: 15px;
     }
-    
-    .stat-card {
-        padding: 1rem;
+    header h1 {
+        font-size: 2em;
     }
-    
-    .filter-container {
-        padding: 1rem;
+    .detail-main {
+        padding: 20px;
     }
-    
-    .ticket-card {
-        padding: 1rem;
+    .poster-container {
+        width: 80%;
     }
-    
-    .ticket-header {
-        flex-direction: column;
-        gap: 0.5rem;
-        align-items: flex-start;
+    .info-item {
+        grid-template-columns: 1fr;
+        gap: 8px;
     }
-}
-
-/* 애니메이션 */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.ticket-card {
-    animation: fadeIn 0.3s ease;
-}
-
-/* 스크롤바 스타일 */
-::-webkit-scrollbar {
-    width: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: hsl(var(--background));
-}
-
-::-webkit-scrollbar-thumb {
-    background: hsl(var(--border));
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground));
 }

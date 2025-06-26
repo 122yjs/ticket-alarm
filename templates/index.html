@@ -2,202 +2,42 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>티켓 오픈 모니터 - 실시간 공연 티켓 오픈 알림</title>
-    <meta name="description" content="멜론티켓, YES24, 인터파크, 티켓링크의 실시간 티켓 오픈 정보를 한눈에 확인하고 알림을 받아보세요. 콘서트, 뮤지컬, 연극 등 모든 공연 정보를 실시간으로 모니터링합니다." />
-    
-    <!-- Google Fonts -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>티켓 오픈 알림</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-
-    <!-- Open Graph -->
-    <meta property="og:title" content="티켓 오픈 모니터 - 실시간 공연 티켓 오픈 알림" />
-    <meta property="og:description" content="멜론티켓, YES24, 인터파크, 티켓링크의 실시간 티켓 오픈 정보를 한눈에 확인하고 알림을 받아보세요." />
-    <meta property="og:type" content="website" />
-
-    <!-- CSS -->
-    <link href="/static/style.css" rel="stylesheet">
-
-    <!-- Theme -->
-    <script>
-      // 다크모드 플래시 방지
-      (function() {
-        const theme = localStorage.getItem('theme') || 'system';
-        if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-          document.documentElement.classList.add('dark');
-        }
-      })();
-    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- 헤더 -->
-    <header class="header">
-        <div class="container">
-            <div class="header-content">
-                <div class="logo">
-                    <i class="fas fa-ticket-alt"></i>
-                    <h1>티켓 오픈 모니터</h1>
-                </div>
-                <div class="header-actions">
-                    {% if is_admin %}
-                    <button id="refreshBtn" class="btn btn-primary">
-                        <i class="fas fa-sync-alt"></i>
-                        수동 새로고침
-                    </button>
-                    {% endif %}
-                    <div class="last-update">
-                        <i class="fas fa-clock"></i>
-                        <span>마지막 업데이트: </span>
-                        <span id="lastUpdate">{{ last_update }}</span>
-                    </div>
-                    <div class="auto-refresh-info">
-                        <i class="fas fa-sync"></i>
-                        <span>자동 갱신: 1시간마다</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </header>
-
-    <!-- 메인 컨텐츠 -->
-    <main class="main">
-        <div class="container">
-            <!-- 통계 섹션 -->
-            <section class="stats-section">
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon today"><i class="fas fa-calendar-day"></i></div>
-                        <div class="stat-content">
-                            <h3>오늘 오픈 ( <span id="today-date"></span>)</h3>
-                            <p class="stat-number" id="today-count">-</p>
+    <div class="container">
+        <header>
+            <h1>티켓 오픈 알림</h1>
+        </header>
+        <main>
+            <section class="ticket-list">
+                <h2>KOPIS 공연 목록</h2>
+                <div class="tickets">
+                    {% for p in kopis_performances %}
+                    <a href="{{ url_for('performance_detail', kopis_id=p.kopis_id) }}" class="ticket-item">
+                        <div class="poster">
+                            <img src="{{ p.poster_url }}" alt="{{ p.name }} 포스터">
                         </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon tomorrow"><i class="fas fa-calendar-plus"></i></div>
-                        <div class="stat-content">
-                            <h3>내일 오픈 ( <span id="tomorrow-date"></span>)</h3>
-                            <p class="stat-number" id="tomorrow-count">-</p>
+                        <div class="info">
+                            <h3 class="title">{{ p.name }}</h3>
+                            <p class="period"><strong>기간:</strong> {{ p.start_date }} ~ {{ p.end_date }}</p>
+                            <p class="facility"><strong>장소:</strong> {{ p.facility_name }}</p>
                         </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon week"><i class="fas fa-calendar-week"></i></div>
-                        <div class="stat-content">
-                            <h3>이번 주 오픈</h3>
-                            <p class="stat-number" id="this-week-count">-</p>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon"><i class="fas fa-ticket-alt"></i></div>
-                        <div class="stat-content">
-                            <h3>전체 티켓</h3>
-                            <p class="stat-number" id="total-count">-</p>
-                        </div>
-                    </div>
+                    </a>
+                    {% else %}
+                    <p>표시할 공연 정보가 없습니다.</p>
+                    {% endfor %}
                 </div>
             </section>
-
-            <!-- 필터 섹션 -->
-            <section class="filter-section">
-                <div class="filter-container">
-                    <div class="filter-group">
-                        <label for="platform-filter">플랫폼</label>
-                        <select id="platform-filter" class="filter-select">
-                            <option value="all">전체</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="genre-filter">장르</label>
-                        <select id="genre-filter" class="filter-select">
-                            <option value="all">전체</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="date-filter">오픈일</label>
-                        <select id="date-filter" class="filter-select">
-                            <option value="all">전체</option>
-                            <option value="today">오늘</option>
-                            <option value="tomorrow">내일</option>
-                            <option value="this-week">이번 주</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="sort-filter">정렬</label>
-                        <select id="sort-filter" class="filter-select">
-                            <option value="open-date-asc">오픈일 순</option>
-                            <option value="open-date-desc">오픈일 역순</option>
-                            <option value="title-asc">이름 순</option>
-                        </select>
-                    </div>
-                    <div class="filter-group search-container">
-                        <label for="search-input">검색</label>
-                        <div class="relative w-full">
-                            <i class="fas fa-search search-icon"></i>
-                            <input type="text" id="search-input" class="search-input" placeholder="공연명 검색...">
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 티켓 목록 -->
-            <section class="tickets-section">
-                <div class="section-header">
-                    <h2>티켓 목록</h2>
-                    <div class="view-options">
-                        <button class="view-btn active" id="grid-view-btn" aria-label="Grid view">
-                            <i class="fas fa-th-large"></i>
-                        </button>
-                        <button class="view-btn" id="list-view-btn" aria-label="List view">
-                            <i class="fas fa-list"></i>
-                        </button>
-                    </div>
-                </div>
-                <div id="tickets-container" class="tickets-grid">
-                    <!-- 티켓 카드는 script.js에서 동적으로 생성됩니다 -->
-                </div>
-                <div id="loading-spinner" class="loading-spinner" style="display: none;">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <p>티켓 정보를 불러오는 중...</p>
-                </div>
-                <div id="no-results" class="no-results" style="display: none;">
-                    <i class="fas fa-box-open"></i>
-                    <h3>검색 결과가 없습니다.</h3>
-                    <p>다른 필터나 검색어를 시도해 보세요.</p>
-                </div>
-            </section>
-        </div>
-    </main>
-
-    <!-- 푸터 -->
-    <footer class="footer">
-        <div class="container">
-            <div class="footer-content">
-                <div class="footer-info">
-                    <p>&copy; 2024 티켓 오픈 모니터. 실시간 공연 티켓 알림 시스템</p>
-                    <p>마지막 업데이트: <span id="footerLastUpdate">{{ last_update }}</span></p>
-                    {% if is_admin %}
-                    <p class="admin-info">관리자 모드 - 수동 새로고침 권한 있음</p>
-                    {% endif %}
-                </div>
-                <div class="footer-links">
-                    <a href="#" class="footer-link">도움말</a>
-                    <a href="#" class="footer-link">문의하기</a>
-                    <a href="#" class="footer-link">GitHub</a>
-                </div>
-            </div>
-        </div>
-    </footer>
-
-    <!-- JavaScript -->
-    <script>
-        // 서버에서 전달받은 설정값들
-        window.APP_CONFIG = {
-            isAdmin: {{ 'true' if is_admin else 'false' }},
-            autoRefreshInterval: {{ auto_refresh_interval }},
-            lastUpdateIso: {{ ('"' + last_update_iso + '"') if last_update_iso else 'null' }}
-        };
-    </script>
-    <script src="/static/script.js"></script>
+        </main>
+        <footer>
+            <p>Ticket Alarm Project</p>
+        </footer>
+    </div>
 </body>
 </html>
