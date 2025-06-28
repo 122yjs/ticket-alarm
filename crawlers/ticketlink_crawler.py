@@ -5,6 +5,7 @@ import random
 import time
 import json
 import traceback
+import re
 import logging
 
 def get_ticketlink_notices(max_retries=3, retry_delay=2):
@@ -81,6 +82,26 @@ def _crawl_ticketlink_with_retry():
             )
             
             page = context.new_page()
+
+            # 네트워크 요청을 가로채서 특정 JS 파일 로드를 차단
+            # Adblock Plus 패턴을 정규식으로 변환
+            block_patterns = [
+                re.compile(r".*help/notice.*evfw=.*"),
+                re.compile(r".*/resources/js/dist/tk\.mobile\.notice-.*"),
+                re.compile(r".*/resources/js/dist/tk\.notice\.viewer-.*"),
+                re.compile(r".*/resources/js/dist/.*noticeDetail.*")
+            ]
+
+            def handle_route(route):
+                request = route.request
+                for pattern in block_patterns:
+                    if pattern.search(request.url):
+                        logging.info(f"차단됨: {request.url}")
+                        route.abort()
+                        return
+                route.continue_()
+
+            page.route("**/*", handle_route)
             
             # 페이지 타임아웃 설정
             page.set_default_navigation_timeout(30000)
@@ -303,7 +324,6 @@ def _crawl_ticketlink_with_retry():
                         href = link_elem['href']
                         if href.startswith('javascript:'):
                             # JavaScript 함수에서 실제 링크 추출 시도
-                            import re
                             match = re.search(r"['\"](\d+)['\"]", href)
                             if match:
                                 notice_id = match.group(1)
