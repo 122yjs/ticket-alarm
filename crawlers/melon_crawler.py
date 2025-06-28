@@ -92,10 +92,13 @@ def _crawl_melon_notices():
             # 페이지 로드 완료 대기
             page.wait_for_load_state('networkidle', timeout=10000)
 
-            page_num = 1
-            while True:
-                logging.info(f"{page_num} 페이지 파싱 시작...")
+            MAX_PAGES = 10
+            for page_num in range(1, MAX_PAGES + 1):
+                logging.info(f"{page_num}/{MAX_PAGES} 페이지 파싱 시작...")
+                
                 # 현재 페이지의 HTML을 가져와서 파싱
+                # 페이지 로드 후 잠시 대기하여 동적 콘텐츠가 로드될 시간을 확보
+                time.sleep(random.uniform(0.5, 1.5))
                 html = page.content()
                 soup = BeautifulSoup(html, "html.parser")
 
@@ -139,9 +142,6 @@ def _crawl_melon_notices():
                 # 2. 메인 "티켓오픈" 목록 크롤링
                 main_items = soup.select("ul.list_ticket_cont > li")
                 logging.info(f"메인 목록 섹션에서 {len(main_items)}개 아이템을 파싱합니다.")
-                if not main_items and page_num > 1:
-                    logging.info("현재 페이지에 더 이상 티켓 정보가 없습니다.")
-                    break
 
                 for item in main_items:
                     try:
@@ -176,38 +176,38 @@ def _crawl_melon_notices():
                         logging.warning(f"메인 목록 아이템 파싱 중 오류 발생: {e}")
                         continue
 
-                # 페이지네이션 처리
-                try:
-                    # '다음 페이지' 버튼을 찾습니다.
-                    next_button_selector = 'a.btn_next'
-                    next_button = page.locator(next_button_selector)
-
-                    # 버튼이 비활성화 상태인지 확인 ('disabled' 클래스 존재 여부)
-                    is_disabled = 'disabled' in (next_button.get_attribute('class') or '')
-                    
-                    if is_disabled:
-                        logging.info("페이지네이션 완료: '다음' 버튼이 비활성화되었습니다.")
-                        break
-                    
-                    if not next_button.is_visible():
-                        logging.info("페이지네이션 완료: '다음' 버튼을 더 이상 찾을 수 없습니다.")
-                        break
-
-                    # 다음 페이지로 이동
-                    logging.info(f"{page_num} 페이지 파싱 완료. 다음 페이지로 이동합니다.")
-                    next_button.click()
-                    
-                    # 페이지 로드가 완료될 때까지 대기
-                    page.wait_for_load_state('domcontentloaded', timeout=15000)
-                    time.sleep(random.uniform(1, 2)) # 추가적인 안정성을 위한 지연
-                    
-                    page_num += 1
-
-                except (TimeoutError, NoSuchElementException):
-                    logging.info("페이지네이션 완료: '다음' 버튼을 찾지 못했습니다.")
+                # 마지막 페이지이거나, 더 이상 파싱할 아이템이 없으면 종료
+                if page_num == MAX_PAGES:
+                    logging.info(f"최대 {MAX_PAGES}페이지까지 파싱 완료.")
                     break
-                except Exception as e:
-                    logging.error(f"페이지네이션 중 예상치 못한 오류 발생: {e}")
+                
+                if not main_items and page_num > 1:
+                     logging.info("현재 페이지에 더 이상 티켓 정보가 없어 파싱을 중단합니다.")
+                     break
+
+                # 페이지네이션 처리: 다음 페이지 번호 클릭
+                try:
+                    next_page_num = page_num + 1
+                    next_page_selector = f'a.link_page:text-is("{next_page_num}")'
+                    
+                    logging.info(f"{page_num} 페이지 파싱 완료. 다음 페이지({next_page_num})로 이동합니다.")
+                    next_page_button = page.locator(next_page_selector)
+                    
+                    if not next_page_button.is_visible():
+                        logging.info(f"페이지네이션 완료: 다음 페이지({next_page_num}) 버튼을 찾을 수 없습니다.")
+                        break
+                    
+                    next_page_button.click()
+                    
+                    # 페이지 이동이 완료될 때까지, 다음 페이지 번호가 활성화(em 태그)되는 것을 대기
+                    expect(page.locator(f'em.link_page:text-is("{next_page_num}")')).to_be_visible(timeout=15000)
+                    page.wait_for_load_state('domcontentloaded', timeout=15000)
+
+                except TimeoutError:
+                    logging.info(f"페이지네이션 완료: 다음 페이지({next_page_num})로 이동 중 타임아웃 발생.")
+                    break
+                except Exception:
+                    logging.info(f"페이지네이션 완료: 다음 페이지({next_page_num})를 찾을 수 없거나 클릭할 수 없습니다.")
                     break
             
             if not ticket_list:
