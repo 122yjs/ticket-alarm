@@ -1,8 +1,9 @@
 import logging
 import time
 import random
-from playwright.sync_api import sync_playwright, TimeoutError
+from playwright.sync_api import sync_playwright, TimeoutError, expect
 from bs4 import BeautifulSoup
+from selenium.common.exceptions import NoSuchElementException
 
 def get_melon_notices(max_retries=3, retry_delay=2):
     """
@@ -90,102 +91,124 @@ def _crawl_melon_notices():
             
             # 페이지 로드 완료 대기
             page.wait_for_load_state('networkidle', timeout=10000)
-            
-            # 스크롤을 통해 더 많은 데이터 로드 (개선된 방식)
-            scroll_count = 3
-            logging.info(f"데이터를 더 불러오기 위해 페이지를 {scroll_count}번 스크롤합니다.")
-            for i in range(scroll_count):
-                # 부드러운 스크롤
-                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                
-                # 랜덤 지연
-                time.sleep(random.uniform(1, 2))
-                
-                # 네트워크 안정화 대기
-                try:
-                    page.wait_for_load_state('networkidle', timeout=5000)
-                except Exception:
-                    logging.debug(f"스크롤 {i+1} 후 네트워크 대기 타임아웃")
-                    pass
-                
-                logging.info(f"스크롤 {i+1}/{scroll_count} 완료...")
-            
-            # 최종 HTML 가져오기
-            html = page.content()
-            soup = BeautifulSoup(html, "html.parser")
 
-            # 1. "HOT 공연 오픈 소식" 크롤링
-            hot_items = soup.select("ul.list_hot_issue div.cont")
-            logging.info(f"HOT 공연 섹션에서 {len(hot_items)}개 아이템을 파싱합니다.")
-            for item in hot_items:
-                try:
-                    link_element = item.select_one("a")
-                    if not link_element or not link_element.has_attr('href'):
-                        continue
-                    
-                    relative_link = link_element['href']
-                    # 링크를 고유 ID로 사용 (상대 경로를 절대 경로로 변환)
-                    link = "https://ticket.melon.com/csoon/" + relative_link.lstrip('./')
+            page_num = 1
+            while True:
+                logging.info(f"{page_num} 페이지 파싱 시작...")
+                # 현재 페이지의 HTML을 가져와서 파싱
+                html = page.content()
+                soup = BeautifulSoup(html, "html.parser")
 
-                    if link in seen_links:
-                        continue  # 이미 추가된 티켓이면 건너뛰기
-                    
-                    title_element = item.select_one("a strong.tit_consert")
-                    date_element = item.select_one("a span.date")
+                # 1. "HOT 공연 오픈 소식" 크롤링 (첫 페이지만 해당)
+                if page_num == 1:
+                    hot_items = soup.select("ul.list_hot_issue div.cont")
+                    logging.info(f"HOT 공연 섹션에서 {len(hot_items)}개 아이템을 파싱합니다.")
+                    for item in hot_items:
+                        try:
+                            link_element = item.select_one("a")
+                            if not link_element or not link_element.has_attr('href'):
+                                continue
+                            
+                            relative_link = link_element['href']
+                            link = "https://ticket.melon.com/csoon/" + relative_link.lstrip('./')
 
-                    if not all([title_element, date_element]):
-                        continue
+                            if link in seen_links:
+                                continue
+                            
+                            title_element = item.select_one("a strong.tit_consert")
+                            date_element = item.select_one("a span.date")
 
-                    title = title_element.get_text(strip=True)
-                    open_date = date_element.get_text(strip=True)
-                    
-                    ticket_info = {
-                        "open_date": open_date,
-                        "title": title,
-                        "link": link,
-                        "source": "멜론티켓"
-                    }
-                    ticket_list.append(ticket_info)
-                    seen_links.add(link)  # 처리된 링크로 기록
-                except Exception as e:
-                    logging.warning(f"HOT 공연 아이템 파싱 중 오류 발생: {e}")
-                    continue
+                            if not all([title_element, date_element]):
+                                continue
 
-            # 2. 메인 "티켓오픈" 목록 크롤링
-            main_items = soup.select("ul.list_ticket_cont > li")
-            logging.info(f"메인 목록 섹션에서 {len(main_items)}개 아이템을 파싱합니다.")
-            for item in main_items:
-                try:
-                    link_element = item.select_one("a.tit")
-                    if not link_element or not link_element.has_attr('href'):
-                        continue
-                    
-                    relative_link = link_element['href']
-                    link = "https://ticket.melon.com/csoon/" + relative_link.lstrip('./')
+                            title = title_element.get_text(strip=True)
+                            open_date = date_element.get_text(strip=True)
+                            
+                            ticket_info = {
+                                "open_date": open_date,
+                                "title": title,
+                                "link": link,
+                                "source": "멜론티켓"
+                            }
+                            ticket_list.append(ticket_info)
+                            seen_links.add(link)
+                        except Exception as e:
+                            logging.warning(f"HOT 공연 아이템 파싱 중 오류 발생: {e}")
+                            continue
 
-                    if link in seen_links:
-                        continue
+                # 2. 메인 "티켓오픈" 목록 크롤링
+                main_items = soup.select("ul.list_ticket_cont > li")
+                logging.info(f"메인 목록 섹션에서 {len(main_items)}개 아이템을 파싱합니다.")
+                if not main_items and page_num > 1:
+                    logging.info("현재 페이지에 더 이상 티켓 정보가 없습니다.")
+                    break
 
-                    title_element = item.select_one("a.tit")
-                    date_element = item.select_one("div.ticket_data span.date")
-
-                    if not all([title_element, date_element]):
-                        continue
+                for item in main_items:
+                    try:
+                        link_element = item.select_one("a.tit")
+                        if not link_element or not link_element.has_attr('href'):
+                            continue
                         
-                    title = title_element.get_text(strip=True)
-                    open_date = date_element.get_text(strip=True)
+                        relative_link = link_element['href']
+                        link = "https://ticket.melon.com/csoon/" + relative_link.lstrip('./')
 
-                    ticket_info = {
-                        "open_date": open_date,
-                        "title": title,
-                        "link": link,
-                        "source": "멜론티켓"
-                    }
-                    ticket_list.append(ticket_info)
-                    seen_links.add(link)
+                        if link in seen_links:
+                            continue
+
+                        title_element = item.select_one("a.tit")
+                        date_element = item.select_one("div.ticket_data span.date")
+
+                        if not all([title_element, date_element]):
+                            continue
+                            
+                        title = title_element.get_text(strip=True)
+                        open_date = date_element.get_text(strip=True)
+
+                        ticket_info = {
+                            "open_date": open_date,
+                            "title": title,
+                            "link": link,
+                            "source": "멜론티켓"
+                        }
+                        ticket_list.append(ticket_info)
+                        seen_links.add(link)
+                    except Exception as e:
+                        logging.warning(f"메인 목록 아이템 파싱 중 오류 발생: {e}")
+                        continue
+
+                # 페이지네이션 처리
+                try:
+                    # '다음 페이지' 버튼을 찾습니다.
+                    next_button_selector = 'a.btn_next'
+                    next_button = page.locator(next_button_selector)
+
+                    # 버튼이 비활성화 상태인지 확인 ('disabled' 클래스 존재 여부)
+                    is_disabled = 'disabled' in (next_button.get_attribute('class') or '')
+                    
+                    if is_disabled:
+                        logging.info("페이지네이션 완료: '다음' 버튼이 비활성화되었습니다.")
+                        break
+                    
+                    if not next_button.is_visible():
+                        logging.info("페이지네이션 완료: '다음' 버튼을 더 이상 찾을 수 없습니다.")
+                        break
+
+                    # 다음 페이지로 이동
+                    logging.info(f"{page_num} 페이지 파싱 완료. 다음 페이지로 이동합니다.")
+                    next_button.click()
+                    
+                    # 페이지 로드가 완료될 때까지 대기
+                    page.wait_for_load_state('domcontentloaded', timeout=15000)
+                    time.sleep(random.uniform(1, 2)) # 추가적인 안정성을 위한 지연
+                    
+                    page_num += 1
+
+                except (TimeoutError, NoSuchElementException):
+                    logging.info("페이지네이션 완료: '다음' 버튼을 찾지 못했습니다.")
+                    break
                 except Exception as e:
-                    logging.warning(f"메인 목록 아이템 파싱 중 오류 발생: {e}")
-                    continue
+                    logging.error(f"페이지네이션 중 예상치 못한 오류 발생: {e}")
+                    break
             
             if not ticket_list:
                 logging.warning("공지사항 아이템을 찾을 수 없습니다. 웹사이트 구조가 변경되었을 수 있습니다.")

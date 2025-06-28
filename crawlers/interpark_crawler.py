@@ -4,6 +4,7 @@ import random
 from playwright.sync_api import sync_playwright, TimeoutError
 from bs4 import BeautifulSoup
 
+
 def get_interpark_notices(max_retries=3, retry_delay=2):
     """
     인터파크 티켓 공지사항을 크롤링합니다.
@@ -80,28 +81,50 @@ def _crawl_interpark_with_retry(attempt, max_attempts):
             
             # 페이지 로드 완료 대기
             page.wait_for_load_state('networkidle', timeout=10000)
-            
-            # 점진적 스크롤로 더 많은 데이터 로드
-            scroll_count = 3
-            logging.info(f"데이터를 더 불러오기 위해 페이지를 {scroll_count}번 스크롤합니다.")
-            
-            for i in range(scroll_count):
-                try:
-                    # 부드러운 스크롤
-                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    logging.info(f"스크롤 {i+1}/{scroll_count} 완료...")
-                    
-                    # 랜덤 지연으로 자연스러운 동작 모방
-                    wait_time = random.uniform(1.5, 2.5)
-                    page.wait_for_timeout(int(wait_time * 1000))
-                    
-                    # 새로운 콘텐츠 로드 대기
-                    page.wait_for_load_state('networkidle', timeout=5000)
-                    
-                except TimeoutError:
-                    logging.warning(f"스크롤 {i+1} 중 타임아웃 발생, 계속 진행")
-                    continue
 
+            # 동적 스크롤로 페이지의 모든 콘텐츠 로드
+            logging.info("동적 스크롤링을 시작합니다. 페이지의 모든 콘텐츠를 로드합니다.")
+            
+            last_height = page.evaluate("document.body.scrollHeight")
+            scroll_attempts = 0
+            MAX_SCROLL_ATTEMPTS = 20 # 무한 루프 방지를 위한 최대 스크롤 횟수
+
+            while scroll_attempts < MAX_SCROLL_ATTEMPTS:
+                logging.info(f"스크롤 시도 {scroll_attempts + 1}/{MAX_SCROLL_ATTEMPTS}...")
+                
+                # 페이지 맨 아래로 스크롤
+                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                
+                try:
+                    # 페이지 높이가 변경될 때까지 명시적으로 대기 (5초 타임아웃)
+                    # WebDriverWait와 같은 역할을 하는 Playwright의 기능
+                    page.wait_for_function(
+                        "document.body.scrollHeight > arguments[0]",
+                        arg=last_height,
+                        timeout=5000
+                    )
+                    
+                    # 랜덤 지연 추가 (봇 탐지 방지)
+                    time.sleep(random.uniform(1.0, 2.0))
+
+                    new_height = page.evaluate("document.body.scrollHeight")
+                    if new_height == last_height:
+                        # 높이 변화가 없으면 모든 콘텐츠가 로드된 것으로 판단
+                        logging.info("페이지 높이에 더 이상 변화가 없어 스크롤을 종료합니다.")
+                        break
+                    last_height = new_height
+                
+                except TimeoutError:
+                    # 5초 동안 페이지 높이 변화가 없으면 스크롤 종료
+                    logging.info("콘텐츠 로딩 타임아웃. 스크롤을 종료합니다.")
+                    break
+                
+                scroll_attempts += 1
+
+            if scroll_attempts >= MAX_SCROLL_ATTEMPTS:
+                logging.warning(f"최대 스크롤 횟수({MAX_SCROLL_ATTEMPTS})에 도달했습니다.")
+
+            logging.info("스크롤링 완료. 페이지 콘텐츠를 파싱합니다.")
             html = page.content()
             soup = BeautifulSoup(html, "html.parser")
 
