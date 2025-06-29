@@ -92,7 +92,7 @@ def _crawl_melon_notices():
             # 페이지 로드 완료 대기
             page.wait_for_load_state('networkidle', timeout=10000)
 
-            MAX_PAGES = 10
+            MAX_PAGES = 4
             for page_num in range(1, MAX_PAGES + 1):
                 logging.info(f"{page_num}/{MAX_PAGES} 페이지 파싱 시작...")
                 

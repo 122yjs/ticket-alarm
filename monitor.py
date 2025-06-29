@@ -12,6 +12,7 @@ import concurrent.futures
 from datetime import datetime
 from typing import List, Dict, Any, Callable
 
+from supabase import create_client, Client
 from discord_notifier import DiscordNotifier
 
 
@@ -100,23 +101,23 @@ def save_new_tickets_to_db(db: Client, tickets: List[Dict[str, Any]]):
         return 0
 
 
-def save_all_tickets(tickets: List[Dict[str, Any]], filename: str = "all_tickets.json"):
-    """수집된 모든 티켓 정보를 JSON 파일로 저장합니다."""
-    try:
-        # data 디렉토리가 없으면 생성
-        if not os.path.exists('data'):
-            os.makedirs('data')
-        
-        filepath = os.path.join('data', filename)
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump({
-                "last_updated": datetime.now().isoformat(),
-                "count": len(tickets),
-                "tickets": tickets
-            }, f, ensure_ascii=False, indent=2)
-        logging.info(f"{len(tickets)}개의 티켓 정보를 {filepath}에 저장했습니다.")
-    except Exception as e:
-        logging.error(f"티켓 정보 저장 중 오류 발생: {e}")
+# def save_all_tickets(tickets: List[Dict[str, Any]], filename: str = "all_tickets.json"):
+#     """수집된 모든 티켓 정보를 JSON 파일로 저장합니다."""
+#     try:
+#         # data 디렉토리가 없으면 생성
+#         if not os.path.exists('data'):
+#             os.makedirs('data')
+#         
+#         filepath = os.path.join('data', filename)
+#         with open(filepath, 'w', encoding='utf-8') as f:
+#             json.dump({
+#                 "last_updated": datetime.now().isoformat(),
+#                 "count": len(tickets),
+#                 "tickets": tickets
+#             }, f, ensure_ascii=False, indent=2)
+#         logging.info(f"{len(tickets)}개의 티켓 정보를 {filepath}에 저장했습니다.")
+#     except Exception as e:
+#         logging.error(f"티켓 정보 저장 중 오류 발생: {e}")
 
 
 def filter_tickets_by_keyword(tickets: List[Dict[str, Any]], keywords: List[str]) -> List[Dict[str, Any]]:
@@ -194,72 +195,47 @@ def collect_all_tickets(sources: List[str]) -> List[Dict[str, Any]]:
 
 def monitor_tickets(config: Dict[str, Any]):
     """
-    주기적으로 티켓 정보를 모니터링하고 디스코드로 알림을 보냅니다.
-    
-    Args:
-        config: 설정 정보를 담은 딕셔너리
+    주기적으로 티켓 정보를 모니터링하고 DB에 저장 후 알림을 보냅니다.
     """
-    webhook_url = config["DISCORD_WEBHOOK_URL"]
-    interval = config["interval"]
-    sources = config["sources"]
-    keywords = config["KEYWORDS"]
+    db = get_db_client()  # DB 클라이언트 생성
+    notifier = DiscordNotifier(config["DISCORD_WEBHOOK_URL"])
     
-    notifier = DiscordNotifier(webhook_url)
+    logging.info("티켓 모니터링을 시작합니다...")
     
-    logging.info(f"티켓 모니터링을 시작합니다. 간격: {interval}초")
-    logging.info(f"모니터링 대상 사이트: {', '.join(sources)}")
-    logging.info(f"모니터링 키워드: {', '.join(keywords) if keywords else '없음'}")
+    # --- 메인 로직 시작 (while True 루프 대신 단일 실행으로 변경) ---
+    start_time = time.time()
+    logging.info(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 티켓 정보 수집 시작")
     
-    try:
-        while True:
-            start_time = time.time()
-            logging.info(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 티켓 정보 수집 시작")
-            
-            # 1. 티켓 정보 수집
-            all_tickets = collect_all_tickets(sources)
-            
-            # 2. 키워드로 필터링
-            filtered_tickets = filter_tickets_by_keyword(all_tickets, keywords)
-            logging.info(f"키워드 필터링 후 {len(filtered_tickets)}개의 티켓이 남았습니다.")
-            
-            # 3. 모든 수집 정보 저장 (필터링 전)
-            save_all_tickets(all_tickets)
-            
-            # 4. 새로운 티켓 정보만 알림 전송 (필터링 후)
-            if filtered_tickets:
-                sent_count = notifier.send_batch_notifications(filtered_tickets)
-                logging.info(f"{sent_count}개의 새로운 티켓 정보를 디스코드로 전송했습니다.")
-            else:
-                logging.info("전송할 티켓 정보가 없습니다.")
-            
-            # 5. 다음 실행까지 대기
-            elapsed = time.time() - start_time
-            wait_time = max(interval - elapsed, 0)
-            
-            # 정확한 간격을 위해 조금의 랜덤 지연 추가 (봇 감지 방지)
-            jitter = random.uniform(0, 60)
-            wait_time += jitter
-            
-            next_run_str = datetime.fromtimestamp(time.time() + wait_time).strftime('%Y-%m-%d %H:%M:%S')
-            logging.info(f"다음 실행 시간: {next_run_str} (약 {wait_time/60:.1f}분 후)")
-            time.sleep(wait_time)
-            
-    except KeyboardInterrupt:
-        logging.info("모니터링을 종료합니다.")
-    except Exception as e:
-        logging.critical(f"모니터링 중 치명적인 오류 발생: {e}", exc_info=True)
-        raise
+    # 1. 모든 티켓 정보 수집
+    all_tickets = collect_all_tickets(config["sources"])
+    
+    # 2. DB에 이미 있는 티켓 필터링
+    existing_links = get_existing_ticket_links(db)
+    new_tickets = [t for t in all_tickets if t.get('link') and t['link'] not in existing_links]
+    logging.info(f"총 {len(all_tickets)}개 수집, 신규 티켓: {len(new_tickets)}개")
+    
+    # 3. 새로운 티켓 DB에 저장
+    if new_tickets:
+        save_new_tickets_to_db(db, new_tickets)
+    
+    # 4. 키워드로 필터링 (새로운 티켓 중에서)
+    filtered_tickets = filter_tickets_by_keyword(new_tickets, config["KEYWORDS"])
+    logging.info(f"키워드 필터링 후 알림 보낼 티켓: {len(filtered_tickets)}개")
+    
+    # 5. 알림 전송
+    if filtered_tickets:
+        sent_count = notifier.send_batch_notifications(filtered_tickets)  # 이 함수는 내부에 sent_notifications.json 대신 DB를 사용하도록 수정하면 더 좋음
+        logging.info(f"{sent_count}개의 새로운 티켓 정보를 디스코드로 전송했습니다.")
+    else:
+        logging.info("전송할 새로운 티켓 정보가 없습니다.")
+    
+    logging.info(f"작업 완료. (소요 시간: {time.time() - start_time:.2f}초)")
 
 
 def main():
-    """메인 실행 함수"""
-    # 로깅 설정
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s]: %(message)s')
-
-    # 설정 로드
     config = load_config()
-    
-    # 모니터링 시작
+    # GitHub Actions에서는 무한 루프가 필요 없으므로 monitor_tickets를 직접 호출
     monitor_tickets(config)
 
 
