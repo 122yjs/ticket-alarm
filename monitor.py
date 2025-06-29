@@ -52,6 +52,54 @@ def load_config() -> Dict[str, Any]:
     return config
 
 
+def get_db_client() -> Client:
+    """Supabase 클라이언트를 생성합니다."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY")
+    if not url or not key:
+        logging.error("SUPABASE_URL 또는 SUPABASE_KEY 환경변수가 설정되지 않았습니다.")
+        raise ValueError("Supabase 접속 정보가 없습니다.")
+    return create_client(url, key)
+
+
+def get_existing_ticket_links(db: Client) -> set:
+    """DB에 이미 저장된 모든 티켓 링크를 가져옵니다."""
+    try:
+        response = db.table('tickets').select('link').execute()
+        links = {item['link'] for item in response.data}
+        logging.info(f"DB에서 {len(links)}개의 기존 티켓 링크를 로드했습니다.")
+        return links
+    except Exception as e:
+        logging.error(f"기존 티켓 링크 로드 중 오류: {e}")
+        return set()
+
+
+def save_new_tickets_to_db(db: Client, tickets: List[Dict[str, Any]]):
+    """새로운 티켓 정보를 DB에 저장합니다."""
+    if not tickets:
+        return 0
+
+    try:
+        # DB 스키마에 맞게 데이터 정리
+        records_to_insert = []
+        for ticket in tickets:
+            records_to_insert.append({
+                'open_date': ticket.get('open_date'),
+                'title': ticket.get('title'),
+                'link': ticket.get('link'),
+                'source': ticket.get('source'),
+                'additional_info': ticket.get('additional_info')
+            })
+
+        response = db.table('tickets').insert(records_to_insert).execute()
+        count = len(response.data)
+        logging.info(f"{count}개의 새로운 티켓을 DB에 저장했습니다.")
+        return count
+    except Exception as e:
+        logging.error(f"DB에 티켓 저장 중 오류: {e}")
+        return 0
+
+
 def save_all_tickets(tickets: List[Dict[str, Any]], filename: str = "all_tickets.json"):
     """수집된 모든 티켓 정보를 JSON 파일로 저장합니다."""
     try:
