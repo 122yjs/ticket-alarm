@@ -173,3 +173,4 @@ config.json
 sent_notifications.json
 all_tickets.json
 *.png
+gemini.md
