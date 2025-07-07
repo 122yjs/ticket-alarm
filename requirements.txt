@@ -14,5 +14,6 @@ playwright
 beautifulsoup4
 requests
 
+pytz
 # 추가 의존성 (필요시)
 # lxml  # BeautifulSoup의 성능 향상을 위한 파서 (선택사항)
