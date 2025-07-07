@@ -121,6 +121,7 @@ async def get_tickets(
             'order_by': order_by,
             'order_desc': order_desc
         }
+        logger.info(f"Received filters: {filters}") # 받은 필터 로깅
         
         # 날짜 필터 처리
         # 날짜 필터 우선 처리

@@ -299,6 +299,7 @@ class TicketDatabase:
             query += " LIMIT ? OFFSET ?"
             params.extend([limit, offset])
             
+            logger.info(f"Executing query: {query} with params: {params}") # SQL 쿼리 로깅
             cursor.execute(query, params)
             rows = cursor.fetchall()
             
