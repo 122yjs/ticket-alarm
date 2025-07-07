@@ -140,19 +140,22 @@ async def get_tickets(
             elif date_filter == 'week':
                 filters['date_from'] = today
                 filters['date_to'] = today + timedelta(days=6)
-        else:
-            # 직접 날짜 입력 처리
-            if date_from:
-                try:
-                    filters['date_from'] = datetime.strptime(date_from, '%Y-%m-%d').date()
-                except ValueError:
-                    raise HTTPException(status_code=400, detail="잘못된 시작 날짜 형식")
             
-            if date_to:
-                try:
-                    filters['date_to'] = datetime.strptime(date_to, '%Y-%m-%d').date()
-                except ValueError:
-                    raise HTTPException(status_code=400, detail="잘못된 종료 날짜 형식")
+            # 디버깅 로그 추가
+            logger.info(f"Date filter '{date_filter}' applied. Today (KST): {today}, From: {filters.get('date_from')}, To: {filters.get('date_to')}")
+        
+        elif date_from:
+            # 직접 날짜 입력 처리
+            try:
+                filters['date_from'] = datetime.strptime(date_from, '%Y-%m-%d').date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="잘못된 시작 날짜 형식")
+        
+        if date_to and not date_filter: # date_filter가 없을 때만 date_to를 독립적으로 처리
+            try:
+                filters['date_to'] = datetime.strptime(date_to, '%Y-%m-%d').date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="잘못된 종료 날짜 형식")
         
         # 티켓 조회
         tickets = data_manager.load_tickets(limit=limit, offset=offset, filters=filters)
