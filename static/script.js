@@ -67,6 +67,11 @@ function initializeEventListeners() {
     flatpickr(elements.dateFrom, {
         dateFormat: "Y-m-d",
         onChange: function(selectedDates, dateStr, instance) {
+            // 시작 날짜가 선택되면, 종료 날짜의 최소 날짜로 설정
+            if (instance.input.id === 'dateFrom' && selectedDates.length > 0) {
+                const dateToPicker = elements.dateTo._flatpickr;
+                dateToPicker.set('minDate', selectedDates[0]);
+            }
             applyFilters();
         }
     });
