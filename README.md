@@ -14,7 +14,7 @@
 ### 필수 패키지 설치
 
 ```bash
-pip install playwright requests beautifulsoup4
+pip install -r requirements.txt
 playwright install chromium
 ```
 
