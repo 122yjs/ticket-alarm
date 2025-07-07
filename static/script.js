@@ -20,6 +20,8 @@ const elements = {
     genreFilter: null,
     dateFilter: null,
     searchInput: null,
+    sortOrder: null,
+    sortDirection: null,
     viewBtns: null,
     lastUpdate: null,
     footerLastUpdate: null
@@ -47,6 +49,8 @@ function initializeElements() {
     elements.genreFilter = document.getElementById('genreFilter');
     elements.dateFilter = document.getElementById('dateFilter');
     elements.searchInput = document.getElementById('searchInput');
+    elements.sortOrder = document.getElementById('sortOrder');
+    elements.sortDirection = document.getElementById('sortDirection');
     elements.viewBtns = document.querySelectorAll('.view-btn');
     elements.lastUpdate = document.getElementById('lastUpdate');
     elements.footerLastUpdate = document.getElementById('footerLastUpdate');
@@ -63,6 +67,8 @@ function initializeEventListeners() {
     elements.platformFilter.addEventListener('change', applyFilters);
     elements.genreFilter.addEventListener('change', applyFilters);
     elements.dateFilter.addEventListener('change', applyFilters);
+    elements.sortOrder.addEventListener('change', applyFilters);
+    elements.sortDirection.addEventListener('change', applyFilters);
     
     // 검색 입력
     let searchTimeout;
@@ -151,11 +157,16 @@ async function applyFilters() {
         const dateFilter = elements.dateFilter.value;
         const search = elements.searchInput.value.trim();
         
-        if (platform && platform !== '전체') params.append('platform', platform);
+        if (platform && platform !== '전체') params.append('source', platform);
         if (genre && genre !== '전체') params.append('genre', genre);
         if (dateFilter && dateFilter !== '전체') params.append('date_filter', dateFilter);
         if (search) params.append('search', search);
-        
+
+        const orderBy = elements.sortOrder.value;
+        const orderDesc = elements.sortDirection.value === 'desc';
+
+        params.append('order_by', orderBy);
+        params.append('order_desc', orderDesc);
         params.append('limit', '100');
         
         const response = await fetch(`/api/tickets?${params.toString()}`);
