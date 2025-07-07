@@ -121,10 +121,16 @@ async def get_tickets(
             'order_by': order_by,
             'order_desc': order_desc
         }
+        
+        # 날짜 필터 추가
+        if date_from:
+            filters['date_from'] = date_from
+        if date_to:
+            filters['date_to'] = date_to
+
         logger.info(f"Received filters: {filters}") # 받은 필터 로깅
         
         # 날짜 필터 처리
-        # 날짜 필터 우선 처리
         if date_from:
             try:
                 filters['date_from'] = datetime.strptime(date_from, '%Y-%m-%d').date()
