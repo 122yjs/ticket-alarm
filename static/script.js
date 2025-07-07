@@ -29,7 +29,7 @@ const elements = {
 document.addEventListener('DOMContentLoaded', function() {
     initializeElements();
     initializeEventListeners();
-    loadTickets();
+    applyFilters();
     
     // 5분마다 자동 새로고침
     setInterval(autoRefresh, 5 * 60 * 1000);
@@ -92,28 +92,6 @@ function initializeEventListeners() {
     });
 }
 
-/**
- * 티켓 데이터 로드
- */
-async function loadTickets() {
-    if (isLoading) return;
-    
-    showLoading(true);
-    
-    try {
-        const response = await fetch('/api/tickets?limit=100');
-        const data = await response.json();
-        
-        currentTickets = data.tickets || [];
-        applyFilters();
-        
-    } catch (error) {
-        console.error('티켓 데이터 로드 실패:', error);
-        showError('티켓 데이터를 불러오는데 실패했습니다.');
-    } finally {
-        showLoading(false);
-    }
-}
 
 /**
  * 데이터 새로고침
@@ -130,7 +108,7 @@ async function refreshData() {
         const data = await response.json();
         
         if (data.status === 'success') {
-            await loadTickets();
+            await applyFilters();
             updateLastUpdateTime();
             showNotification('데이터가 성공적으로 새로고침되었습니다.', 'success');
         }
@@ -149,7 +127,7 @@ async function refreshData() {
 async function autoRefresh() {
     try {
         await fetch('/api/refresh');
-        await loadTickets();
+        await applyFilters();
         updateLastUpdateTime();
         console.log('자동 새로고침 완료');
     } catch (error) {
