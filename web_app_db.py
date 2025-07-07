@@ -141,8 +141,6 @@ async def get_tickets(
                 filters['date_from'] = today
                 filters['date_to'] = today + timedelta(days=6)
             
-            # 디버깅 로그 추가
-            logger.info(f"Date filter '{date_filter}' applied. Today (KST): {today}, From: {filters.get('date_from')}, To: {filters.get('date_to')}")
         
         elif date_from:
             # 직접 날짜 입력 처리
@@ -189,7 +187,8 @@ async def get_stats():
         stats = data_manager.get_statistics()
         
         # 추가 통계 정보
-        today = date.today()
+        kst_now = datetime.utcnow() + timedelta(hours=9)
+        today = kst_now.date()
         
         # 최근 7일간 등록된 티켓 수
         week_ago = today - timedelta(days=7)

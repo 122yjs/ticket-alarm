@@ -383,13 +383,14 @@ class TicketDatabase:
             stats['genre_counts'] = dict(cursor.fetchall())
             
             # 날짜별 통계 (오늘, 내일, 이번 주)
-            today = date.today()
+            kst_now = datetime.utcnow() + timedelta(hours=9)
+            today = kst_now.date()
             cursor.execute("""
-                SELECT 
+                SELECT
                     SUM(CASE WHEN date(open_datetime) = ? THEN 1 ELSE 0 END) as today_count,
                     SUM(CASE WHEN date(open_datetime) = date(?, '+1 day') THEN 1 ELSE 0 END) as tomorrow_count,
                     SUM(CASE WHEN date(open_datetime) BETWEEN ? AND date(?, '+7 days') THEN 1 ELSE 0 END) as week_count
-                FROM tickets 
+                FROM tickets
                 WHERE status = 'active' AND open_datetime IS NOT NULL
             """, (today.isoformat(), today.isoformat(), today.isoformat(), today.isoformat()))
             
