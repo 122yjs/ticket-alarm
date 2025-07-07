@@ -126,7 +126,10 @@ async def get_tickets(
         # 날짜 필터 처리
         # 날짜 필터 우선 처리
         if date_filter:
-            today = date.today()
+            # UTC 기준 현재 시간에 9시간을 더해 한국 시간 계산
+            kst_now = datetime.utcnow() + timedelta(hours=9)
+            today = kst_now.date()
+            
             if date_filter == 'today':
                 filters['date_from'] = today
                 filters['date_to'] = today
