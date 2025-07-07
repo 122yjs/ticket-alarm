@@ -151,7 +151,7 @@ async function applyFilters() {
         const dateFilter = elements.dateFilter.value;
         const search = elements.searchInput.value.trim();
         
-        if (platform && platform !== '전체') params.append('platform', platform);
+        if (platform && platform !== '전체') params.append('source', platform);
         if (genre && genre !== '전체') params.append('genre', genre);
         if (dateFilter && dateFilter !== '전체') params.append('date_filter', dateFilter);
         if (search) params.append('search', search);
