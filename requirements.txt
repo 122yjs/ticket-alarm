@@ -30,7 +30,6 @@ google-adk==0.3.0
 
 pandas==2.2.3
 numpy==1.26.4
-scikit-learn
 joblib==1.4.2
 scipy
 wordcloud==1.9.4
