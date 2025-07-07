@@ -9,6 +9,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="/static/style.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
 <body>
     <!-- 헤더 -->
@@ -107,13 +108,12 @@
                     </div>
                     
                     <div class="filter-group">
-                        <label for="dateFilter">날짜</label>
-                        <select id="dateFilter" class="filter-select">
-                            <option value="전체">전체 기간</option>
-                            <option value="today">오늘</option>
-                            <option value="tomorrow">내일</option>
-                            <option value="week">이번 주</option>
-                        </select>
+                        <label for="dateFrom">오픈일</label>
+                        <div class="date-range-picker">
+                            <input type="text" id="dateFrom" placeholder="시작일">
+                            <span>-</span>
+                            <input type="text" id="dateTo" placeholder="종료일">
+                        </div>
                     </div>
                     
                     <div class="filter-group search-group">
@@ -176,6 +176,7 @@
     </footer>
 
     <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="/static/script.js"></script>
 </body>
 </html>

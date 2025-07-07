@@ -18,7 +18,8 @@ const elements = {
     refreshBtn: null,
     platformFilter: null,
     genreFilter: null,
-    dateFilter: null,
+    dateFrom: null,
+    dateTo: null,
     searchInput: null,
     viewBtns: null,
     lastUpdate: null,
@@ -45,7 +46,8 @@ function initializeElements() {
     elements.refreshBtn = document.getElementById('refreshBtn');
     elements.platformFilter = document.getElementById('platformFilter');
     elements.genreFilter = document.getElementById('genreFilter');
-    elements.dateFilter = document.getElementById('dateFilter');
+    elements.dateFrom = document.getElementById('dateFrom');
+    elements.dateTo = document.getElementById('dateTo');
     elements.searchInput = document.getElementById('searchInput');
     elements.viewBtns = document.querySelectorAll('.view-btn');
     elements.lastUpdate = document.getElementById('lastUpdate');
@@ -62,7 +64,18 @@ function initializeEventListeners() {
     // 필터 변경
     elements.platformFilter.addEventListener('change', applyFilters);
     elements.genreFilter.addEventListener('change', applyFilters);
-    elements.dateFilter.addEventListener('change', applyFilters);
+    flatpickr(elements.dateFrom, {
+        dateFormat: "Y-m-d",
+        onChange: function(selectedDates, dateStr, instance) {
+            applyFilters();
+        }
+    });
+    flatpickr(elements.dateTo, {
+        dateFormat: "Y-m-d",
+        onChange: function(selectedDates, dateStr, instance) {
+            applyFilters();
+        }
+    });
     
     // 검색 입력
     let searchTimeout;
@@ -148,12 +161,14 @@ async function applyFilters() {
         
         const platform = elements.platformFilter.value;
         const genre = elements.genreFilter.value;
-        const dateFilter = elements.dateFilter.value;
+        const dateFrom = elements.dateFrom.value;
+        const dateTo = elements.dateTo.value;
         const search = elements.searchInput.value.trim();
         
         if (platform && platform !== '전체') params.append('source', platform);
         if (genre && genre !== '전체') params.append('genre', genre);
-        if (dateFilter && dateFilter !== '전체') params.append('date_filter', dateFilter);
+        if (dateFrom) params.append('date_from', dateFrom);
+        if (dateTo) params.append('date_to', dateTo);
         if (search) params.append('search', search);
         
         params.append('limit', '100');

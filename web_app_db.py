@@ -103,7 +103,6 @@ async def get_tickets(
     search: Optional[str] = Query(None, description="검색어"),
     date_from: Optional[str] = Query(None, description="시작 날짜 (YYYY-MM-DD)"),
     date_to: Optional[str] = Query(None, description="종료 날짜 (YYYY-MM-DD)"),
-    date_filter: Optional[str] = Query(None, description="날짜 필터 (today, tomorrow, week)"),
     order_by: str = Query("open_datetime", description="정렬 기준"),
     order_desc: bool = Query(True, description="내림차순 정렬 여부")
 ):
@@ -125,31 +124,13 @@ async def get_tickets(
         
         # 날짜 필터 처리
         # 날짜 필터 우선 처리
-        if date_filter:
-            # UTC 기준 현재 시간에 9시간을 더해 한국 시간 계산
-            kst_now = datetime.utcnow() + timedelta(hours=9)
-            today = kst_now.date()
-            
-            if date_filter == 'today':
-                filters['date_from'] = today
-                filters['date_to'] = today
-            elif date_filter == 'tomorrow':
-                tomorrow = today + timedelta(days=1)
-                filters['date_from'] = tomorrow
-                filters['date_to'] = tomorrow
-            elif date_filter == 'week':
-                filters['date_from'] = today
-                filters['date_to'] = today + timedelta(days=6)
-            
-        
-        elif date_from:
-            # 직접 날짜 입력 처리
+        if date_from:
             try:
                 filters['date_from'] = datetime.strptime(date_from, '%Y-%m-%d').date()
             except ValueError:
                 raise HTTPException(status_code=400, detail="잘못된 시작 날짜 형식")
         
-        if date_to and not date_filter: # date_filter가 없을 때만 date_to를 독립적으로 처리
+        if date_to:
             try:
                 filters['date_to'] = datetime.strptime(date_to, '%Y-%m-%d').date()
             except ValueError:
