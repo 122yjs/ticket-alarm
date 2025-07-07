@@ -10,7 +10,6 @@ import os
 import json
 import logging
 from datetime import datetime, timedelta, date
-import pytz
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
@@ -127,8 +126,7 @@ async def get_tickets(
         # 날짜 필터 처리
         # 날짜 필터 우선 처리
         if date_filter:
-            kst = pytz.timezone('Asia/Seoul')
-            today = datetime.now(kst).date()
+            today = date.today()
             if date_filter == 'today':
                 filters['date_from'] = today
                 filters['date_to'] = today
